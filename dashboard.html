@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>又记 - 统计</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: { extend: {} }
+        }
+    </script>
+    <link rel="stylesheet" href="styles/theme.css">
+    <style>
+        .tab-underline {
+            position: relative;
+            color: #9ca3af;
+            cursor: pointer;
+            transition: color 0.15s;
+            font-size: 0.875rem;
+            font-weight: 500;
+            padding: 0.25rem 0;
+            background: none;
+            border: none;
+        }
+        .tab-underline:hover { color: #6b7280; }
+        .tab-underline.active {
+            color: var(--c-accent, #6366f1);
+        }
+        .tab-underline.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--c-accent, #6366f1);
+            border-radius: 1px;
+        }
+        .stat-card { transition: box-shadow 0.15s; }
+        .stat-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+    </style>
+    <script src="common.js"></script>
+    <script src="components/sidebar.js"></script>
+    <script src="db.js"></script>
+</head>
+<body class="min-h-screen">
+    <div class="flex">
+        <div id="sidebar-container"></div>
+
+        <div class="flex-1 ml-16 p-8">
+            <div class="max-w-6xl mx-auto">
+                <div class="flex flex-wrap items-center gap-x-4 gap-y-1 mb-6" id="typeFilterTabs">
+                    <button class="tab-underline active" data-type="all">全部</button>
+                    <button class="tab-underline" data-type="book">书籍</button>
+                    <button class="tab-underline" data-type="movie">电影</button>
+                    <button class="tab-underline" data-type="anime">动漫</button>
+                    <button class="tab-underline" data-type="series">剧集</button>
+                    <button class="tab-underline" data-type="variety">综艺</button>
+                </div>
+                <div id="typeStats" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+                <div id="durationStats" class="mt-6"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let records = [];
+        let currentFilterType = 'all';
+
+        async function init() {
+            initPage('dashboard', loadRecords, saveRecords);
+            records = await loadRecords();
+            bindTabEvents();
+            renderDashboard();
+        }
+
+        function bindTabEvents() {
+            document.querySelectorAll('.tab-underline').forEach(tab => {
+                tab.addEventListener('click', function() {
+                    currentFilterType = this.dataset.type;
+                    document.querySelectorAll('.tab-underline').forEach(t => {
+                        t.classList.toggle('active', t.dataset.type === currentFilterType);
+                    });
+                    renderDashboard();
+                });
+            });
+        }
+
+        function renderDashboard() {
+            const filteredRecords = currentFilterType === 'all' ? records : records.filter(r => r.type === currentFilterType);
+            renderTypeStats(filteredRecords);
+            renderDurationStats(filteredRecords);
+        }
+
+        function renderTypeStats(filteredRecords) {
+            const types = currentFilterType === 'all' ? ['book', 'movie', 'anime', 'series', 'variety'] : [currentFilterType];
+            const typeStats = {};
+            const thisYear = new Date().getFullYear();
+            types.forEach(type => {
+                const typeRecords = filteredRecords.filter(r => r.type === type);
+                const statusCounts = typeRecords.reduce((acc, r) => {
+                    if (r.status && r.status.trim() !== '') acc[r.status] = (acc[r.status] || 0) + 1;
+                    return acc;
+                }, {});
+                const yearCounts = typeRecords.reduce((acc, r) => {
+                    const year = r.viewYear || (r.startDate ? parseInt(r.startDate.split('-')[0]) : (r.endDate ? parseInt(r.endDate.split('-')[0]) : ''));
+                    if (year && !isNaN(year)) acc[year] = (acc[year] || 0) + 1;
+                    return acc;
+                }, {});
+                const yearList = Object.entries(yearCounts).sort((a, b) => a[0] - b[0]);
+                const maxYearCount = Math.max(...Object.values(yearCounts), 1);
+                typeStats[type] = {
+                    count: typeRecords.length,
+                    thisYearCount: typeRecords.filter(r => {
+                        const y = r.viewYear || (r.startDate ? parseInt(r.startDate.split('-')[0]) : (r.endDate ? parseInt(r.endDate.split('-')[0]) : ''));
+                        return y === thisYear;
+                    }).length,
+                    statusCounts,
+                    yearList,
+                    maxYearCount
+                };
+            });
+            const container = document.getElementById('typeStats');
+            const typeConfig = {
+                book: { icon: '📚', name: '书籍', color: 'bg-blue-500' },
+                movie: { icon: '🎬', name: '电影', color: 'bg-green-500' },
+                anime: { icon: '🎌', name: '动漫', color: 'bg-orange-500' },
+                series: { icon: '📺', name: '剧集', color: 'bg-purple-500' },
+                variety: { icon: '🎤', name: '综艺', color: 'bg-pink-500' }
+            };
+            let html = types.map(type => {
+                const stats = typeStats[type];
+                const cfg = typeConfig[type];
+                const statusHtml = Object.entries(stats.statusCounts).length > 0
+                    ? Object.entries(stats.statusCounts).map(([status, count]) => `
+                        <span class="inline-flex items-center gap-1 text-sm">
+                            <span class="text-gray-600 w-10">${status}</span>
+                            <a href="index.html?status=${encodeURIComponent(status)}" class="font-medium ${cfg.color} text-white px-2 h-5 flex items-center justify-center rounded text-xs hover:underline">${count}</a>
+                        </span>`).join('')
+                    : '<span class="text-sm text-gray-400">无数据</span>';
+                const yearHtml = stats.yearList.length > 0
+                    ? `<div class="flex items-end gap-2 h-20 flex-wrap">
+                        ${stats.yearList.map(([year, count]) => {
+                            const height = (count / stats.maxYearCount * 100);
+                            return `<a href="index.html?year=${year}" class="flex flex-col items-center flex-1 h-full justify-end" style="min-width: 3rem;">
+                                    <span class="text-xs text-gray-600 font-medium mb-1">${count}</span>
+                                    <div class="w-full bg-gray-100 rounded-t overflow-hidden relative" style="height: 60px">
+                                        <div class="${cfg.color} w-full absolute bottom-0 transition-all" style="height: ${height}%"></div>
+                                    </div>
+                                    <span class="text-xs text-gray-500 mt-1">${year}</span>
+                                </a>`;
+                        }).join('')}
+                    </div>`
+                    : '<span class="text-sm text-gray-400">无年度数据</span>';
+                return `
+                    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden stat-card">
+                        <div class="flex items-stretch min-h-[160px]">
+                            <div class="w-20 ${cfg.color} text-white p-4 flex flex-col justify-center items-center">
+                                <span class="text-lg font-bold">${cfg.name}</span>
+                                <a href="index.html?year=${thisYear}" class="text-xs font-bold opacity-80 mt-1 hover:underline">今年 ${stats.thisYearCount}</a>
+                            </div>
+                            <div class="flex-1 p-4 h-full">
+                                <div class="flex items-center gap-4 mb-2">
+                                    <span class="text-sm text-gray-500 font-bold">记录总数</span>
+                                    <a href="index.html${currentFilterType !== 'all' ? '?type=' + currentFilterType : ''}" class="text-2xl font-bold text-gray-700 hover:underline">${stats.count}</a>
+                                </div>
+                                <div class="flex flex-wrap gap-2 mb-4">
+                                    <span class="text-sm text-gray-500 mr-2 font-bold">状态：</span>
+                                    ${statusHtml}
+                                </div>
+                                <div class="flex flex-wrap gap-2 items-center">
+                                    <span class="text-sm text-gray-500 mr-2 font-bold">年度：</span>
+                                    ${yearHtml}
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+            }).join('');
+
+            if (currentFilterType === 'all' || currentFilterType === 'notes') {
+                html += `
+                    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden stat-card">
+                        <div class="flex items-stretch min-h-[160px]">
+                            <div class="w-20 text-white p-4 flex flex-col justify-center items-center" style="background:#9A8FB8">
+                                <span class="text-lg font-bold">笔记</span>
+                            </div>
+                            <div class="flex-1 p-4 h-full">
+                                <div class="flex items-center gap-4 mb-2">
+                                    <span class="text-sm text-gray-500 font-bold">笔记总数</span>
+                                    <span class="text-2xl font-bold text-gray-700" id="noteCountDisplay">-</span>
+                                </div>
+                                <div class="flex flex-wrap gap-2 items-center mt-4">
+                                    <span class="text-sm text-gray-500 mr-2 font-bold">年度：</span>
+                                    <span id="noteYearStats"><span class="text-sm text-gray-400">加载中...</span></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+            }
+            container.innerHTML = html;
+            if (currentFilterType === 'all' || currentFilterType === 'notes') loadNoteCount();
+        }
+
+        async function loadNoteCount() {
+            try {
+                const handle = await getFolderHandle();
+                if (!handle) { document.getElementById('noteCountDisplay').textContent = '未连接'; return; }
+                const hasPermission = await verifyFolderPermission(handle);
+                if (!hasPermission) { document.getElementById('noteCountDisplay').textContent = '未授权'; return; }
+                let count = 0;
+                const yearCounts = {};
+                const thisYear = new Date().getFullYear();
+                for await (const entry of handle.values()) {
+                    if (entry.kind === 'file' && entry.name.endsWith('.md')) {
+                        count++;
+                        try {
+                            const file = await entry.getFile();
+                            const year = new Date(file.lastModified).getFullYear();
+                            if (year && !isNaN(year)) yearCounts[year] = (yearCounts[year] || 0) + 1;
+                        } catch (e) {}
+                    }
+                }
+                document.getElementById('noteCountDisplay').textContent = count;
+                const yearList = Object.entries(yearCounts).sort((a, b) => a[0] - b[0]);
+                const maxYearCount = Math.max(...Object.values(yearCounts), 1);
+                const yearHtml = yearList.length > 0
+                    ? `<div class="flex items-end gap-2 h-16 flex-wrap">${yearList.map(([year, yc]) => {
+                        const height = (yc / maxYearCount * 100);
+                        return `<div class="flex flex-col items-center flex-1 h-full justify-end" style="min-width: 2.5rem;">
+                                <span class="text-xs text-gray-600 font-medium mb-0.5">${yc}</span>
+                                <div class="w-full bg-gray-100 rounded-t overflow-hidden relative" style="height: 40px">
+                                    <div class="w-full absolute bottom-0 transition-all" style="background:#9A8FB8;height:${height}%"></div>
+                                </div>
+                                <span class="text-xs text-gray-500 mt-0.5">${year}</span>
+                            </div>`;
+                    }).join('')}</div>`
+                    : '<span class="text-sm text-gray-400">无年度数据</span>';
+                document.getElementById('noteYearStats').innerHTML = yearHtml;
+            } catch (e) {
+                document.getElementById('noteCountDisplay').textContent = '-';
+                document.getElementById('noteYearStats').innerHTML = '<span class="text-sm text-gray-400">无年度数据</span>';
+            }
+        }
+
+        function renderDurationStats(filteredRecords) {
+            const container = document.getElementById('durationStats');
+            if (!container) return;
+            let totalMinutes = 0;
+            const movieMinutes = 120;
+            const episodeMinutes = 30;
+            filteredRecords.forEach(r => {
+                if (r.type === 'movie') totalMinutes += movieMinutes;
+                else if (r.type === 'anime' || r.type === 'series' || r.type === 'variety') {
+                    const watched = r.episodesWatched || 0;
+                    totalMinutes += watched * episodeMinutes;
+                }
+            });
+            const hours = (totalMinutes / 60).toFixed(1);
+            container.innerHTML = `
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                    <p class="text-sm text-gray-600">总计约 <strong class="text-gray-700">${hours}</strong> 小时 · 电影按 <strong>120分/部</strong>，剧集/动漫/综艺按 <strong>30分/集</strong>估算 · 书籍未纳入</p>
+                </div>`;
+        }
+
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

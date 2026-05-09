@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>又记 - 热力图</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: { extend: {} }
+        }
+    </script>
+    <link rel="stylesheet" href="styles/theme.css">
+    <style>
+        .tab-underline {
+            position: relative;
+            color: #9ca3af;
+            cursor: pointer;
+            transition: color 0.15s;
+            font-size: 0.875rem;
+            font-weight: 500;
+            padding: 0.25rem 0;
+            background: none;
+            border: none;
+        }
+        .tab-underline:hover { color: #6b7280; }
+        .tab-underline.active {
+            color: var(--c-accent, #6366f1);
+        }
+        .tab-underline.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--c-accent, #6366f1);
+            border-radius: 1px;
+        }
+        .year-arrow {
+            background: none;
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+            padding: 2px 6px;
+            cursor: pointer;
+            color: #9ca3af;
+            font-size: 0.8rem;
+            transition: color 0.15s, border-color 0.15s;
+        }
+        .year-arrow:hover { color: #6b7280; border-color: #d1d5db; }
+        #heatmapYearText {
+             font-size: 0.875rem;
+             font-weight: 600;
+             color: #6b7280;
+             min-width: 3rem;
+             text-align: center;
+         }
+     </style>
+    <script src="common.js"></script>
+    <script src="components/sidebar.js"></script>
+    <script src="db.js"></script>
+</head>
+<body class="min-h-screen">
+    <div class="flex">
+        <div id="sidebar-container"></div>
+
+        <div class="flex-1 ml-16 p-8">
+            <div id="toast" class="fixed top-4 right-4 bg-indigo-600 text-white px-5 py-3 rounded-lg shadow-lg text-sm hidden transition-all duration-300 z-50">
+                <span id="toastMessage"></span>
+            </div>
+            <div class="max-w-3xl mx-auto">
+                <div class="flex flex-wrap items-center gap-x-4 gap-y-1 mb-6">
+                    <div id="heatmapYearSelector" class="flex items-center gap-1 mr-2">
+                         <button id="yearPrevBtn" class="year-arrow">◀</button>
+                         <span id="heatmapYearText">-</span>
+                         <button id="yearNextBtn" class="year-arrow">▶</button>
+                     </div>
+                    <button class="tab-underline active" data-type="all">全部</button>
+                    <button class="tab-underline" data-type="book">书籍</button>
+                    <button class="tab-underline" data-type="movie">电影</button>
+                    <button class="tab-underline" data-type="anime">动漫</button>
+                    <button class="tab-underline" data-type="series">剧集</button>
+                    <button class="tab-underline" data-type="variety">综艺</button>
+                    <button class="tab-underline" data-type="notes">笔记</button>
+                </div>
+                <div id="heatmapArea">
+                    <div id="heatmapGrid" class="bg-white rounded-lg shadow-sm border border-gray-200 py-12 px-4"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let records = [];
+        let noteDates = [];
+        let currentType = 'all';
+        let selectedYear = new Date().getFullYear();
+
+        function showToast(message, duration = 2000) {
+            const toast = document.getElementById('toast');
+            const msg = document.getElementById('toastMessage');
+            if (!toast || !msg) return;
+            msg.textContent = message;
+            toast.classList.remove('hidden');
+            clearTimeout(window._toastTimer);
+            window._toastTimer = setTimeout(() => toast.classList.add('hidden'), duration);
+        }
+
+        const colorSchemes = {
+            all: { light: 'bg-slate-200', medium: 'bg-slate-400', dark: 'bg-slate-600', gray: 'bg-gray-100' },
+            book: { light: 'bg-blue-200', medium: 'bg-blue-400', dark: 'bg-blue-600', gray: 'bg-gray-100' },
+            movie: { light: 'bg-green-200', medium: 'bg-green-400', dark: 'bg-green-600', gray: 'bg-gray-100' },
+            anime: { light: 'bg-orange-200', medium: 'bg-orange-400', dark: 'bg-orange-600', gray: 'bg-gray-100' },
+            series: { light: 'bg-purple-200', medium: 'bg-purple-400', dark: 'bg-purple-600', gray: 'bg-gray-100' },
+            variety: { light: 'bg-pink-200', medium: 'bg-pink-400', dark: 'bg-pink-600', gray: 'bg-gray-100' },
+            notes: { light: 'bg-note-light', medium: 'bg-note-medium', dark: 'bg-note-dark', gray: 'bg-gray-100' }
+        };
+
+        async function init() {
+            initPage('heatmap', loadRecords, saveRecords);
+            records = await loadRecords();
+            noteDates = await loadNoteDates();
+            bindTypeButtons();
+            renderHeatmap();
+        }
+
+        async function loadNoteDates() {
+            const handle = await getFolderHandle();
+            if (!handle) return [];
+            const dates = [];
+            try {
+                for await (const entry of handle.values()) {
+                    if (entry.kind === 'file' && entry.name.endsWith('.md')) {
+                        const file = await entry.getFile();
+                        dates.push({ date: new Date(file.lastModified).toISOString().slice(0, 10) });
+                    }
+                }
+            } catch (e) {}
+            return dates;
+        }
+
+        function bindTypeButtons() {
+            document.querySelectorAll('.tab-underline').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    currentType = this.dataset.type;
+                    document.querySelectorAll('.tab-underline').forEach(b => {
+                        b.classList.toggle('active', b.dataset.type === currentType);
+                    });
+                    renderHeatmap();
+                });
+            });
+            document.getElementById('yearPrevBtn')?.addEventListener('click', () => {
+                selectedYear--;
+                renderHeatmap();
+            });
+            document.getElementById('yearNextBtn')?.addEventListener('click', () => {
+                selectedYear++;
+                renderHeatmap();
+            });
+        }
+
+        function getColorClass(count, type) {
+            const scheme = colorSchemes[type] || colorSchemes.all;
+            if (!count || count === 0) return scheme.gray;
+            if (count === 1) return scheme.light;
+            if (count === 2) return scheme.medium;
+            return scheme.dark;
+        }
+
+        async function renderHeatmap() {
+            const yearSelectorContainer = document.getElementById('heatmapYearSelector');
+            const grid = document.getElementById('heatmapGrid');
+            if (!grid) return;
+
+            let filteredRecords = records;
+            if (currentType === 'notes') {
+                filteredRecords = [];
+            } else if (currentType !== 'all') {
+                filteredRecords = records.filter(r => r.type === currentType);
+            }
+
+            if (yearSelectorContainer) {
+                const yearText = document.getElementById('heatmapYearText');
+                if (yearText) yearText.textContent = selectedYear;
+            }
+
+            const countByDate = {};
+            filteredRecords.forEach(rec => {
+                let targetDate = rec.endDate || rec.startDate;
+                if (!targetDate) return;
+                targetDate = targetDate.slice(0, 10);
+                const year = parseInt(targetDate.slice(0, 4));
+                if (year === selectedYear) countByDate[targetDate] = (countByDate[targetDate] || 0) + 1;
+            });
+            if (currentType === 'all' || currentType === 'notes') {
+                noteDates.forEach(nd => {
+                    const year = parseInt(nd.date.slice(0, 4));
+                    if (year === selectedYear) countByDate[nd.date] = (countByDate[nd.date] || 0) + 1;
+                });
+            }
+
+            const daysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
+            const monthActualDates = [];
+            for (let m = 0; m < 12; m++) {
+                const days = daysInMonth(selectedYear, m);
+                const dates = [];
+                for (let d = 1; d <= days; d++) {
+                    const dateStr = `${selectedYear}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                    dates.push({ date: dateStr, count: countByDate[dateStr] || 0 });
+                }
+                monthActualDates.push(dates);
+            }
+
+            const wrapper = document.createElement('div');
+            wrapper.className = 'flex flex-col space-y-2';
+            const maxDays = 31;
+            for (let i = 0; i < monthActualDates.length; i++) {
+                const actualDates = monthActualDates[i];
+                const monthDiv = document.createElement('div');
+                monthDiv.className = 'flex items-start gap-6 mb-1';
+                const titleDiv = document.createElement('div');
+                titleDiv.className = 'text-sm font-medium text-gray-600 w-12 text-right pt-0.5';
+                titleDiv.textContent = (i + 1) + '月';
+                monthDiv.appendChild(titleDiv);
+                const gridContainer = document.createElement('div');
+                gridContainer.className = 'flex flex-1 gap-0.5 overflow-x-auto';
+                for (let dayNum = 1; dayNum <= maxDays; dayNum++) {
+                    let count = 0;
+                    let dateStr = null;
+                    if (dayNum <= actualDates.length) {
+                        const actual = actualDates[dayNum - 1];
+                        count = actual.count;
+                        dateStr = actual.date;
+                    } else {
+                        dateStr = `${selectedYear}-${String(i+1).padStart(2,'0')}-${String(dayNum).padStart(2,'0')}`;
+                        count = 0;
+                    }
+                    const isToday = dateStr === new Date().toISOString().slice(0, 10);
+                    const borderClass = isToday ? 'border-2 border-indigo-500' : 'border border-gray-200';
+                    const cell = document.createElement('div');
+                    cell.style.width = '18px';
+                    cell.style.height = '18px';
+                    cell.className = `${getColorClass(count, currentType)} ${borderClass} rounded-sm cursor-pointer`;
+                    cell.addEventListener('click', () => {
+                        if (count > 0) {
+                            if (currentType === 'notes') window.location.href = `notes.html?date=${dateStr}`;
+                            else window.location.href = `index.html?date=${dateStr}`;
+                        }
+                        else showToast('该日无记录');
+                    });
+                    cell.title = dateStr ? `${dateStr} 共 ${count} 条记录` : '无记录';
+                    gridContainer.appendChild(cell);
+                }
+                monthDiv.appendChild(gridContainer);
+                wrapper.appendChild(monthDiv);
+            }
+            grid.innerHTML = '';
+            grid.appendChild(wrapper);
+        }
+
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

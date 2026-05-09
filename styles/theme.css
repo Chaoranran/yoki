@@ -1,0 +1,114 @@
+:root {
+    --c-bg: #FAFBFC;
+    --c-card: #FFFFFF;
+    --c-accent: #9FB8C4;
+    --c-text: #2B2F35;
+    --c-text-soft: #636974;
+    --c-border: #EAEDF2;
+    --c-gray-100: #F1F4F7;
+    --c-book: #AABDCD;
+    --c-movie: #ADC9B9;
+    --c-anime: #C7BEB2;
+    --c-series: #B2B2C6;
+    --c-variety: #C8B4B7;
+}
+
+.dark {
+    --c-bg: #1C1F24;
+    --c-card: #262932;
+    --c-accent: #A7C0CC;
+    --c-text: #E8EBF0;
+    --c-text-soft: #9DA3B0;
+    --c-border: #3A3E48;
+    --c-gray-100: #2B2E37;
+    --c-book: #B8C9D9;
+    --c-movie: #BBD5C4;
+    --c-anime: #D4CBC1;
+    --c-series: #BFBFD2;
+    --c-variety: #D4C1C4;
+}
+
+body { background-color: var(--c-bg) !important; }
+
+.bg-white, nav.bg-white {
+    background-color: var(--c-card) !important;
+    border-color: var(--c-border) !important;
+}
+
+.bg-gray-100 { background-color: var(--c-gray-100) !important; }
+
+.bg-gray-200 {
+    background-color: var(--c-border) !important;
+    color: var(--c-text) !important;
+}
+
+.bg-indigo-600, .bg-indigo-500 { background-color: var(--c-accent) !important; }
+.hover\:bg-indigo-700:hover { background-color: #7A95A8 !important; }
+.text-indigo-600 { color: var(--c-accent) !important; }
+.text-white { color: #FCFDFE !important; }
+.text-gray-700, .text-gray-800 { color: var(--c-text) !important; }
+.text-gray-600, .text-gray-500, .text-gray-400 { color: var(--c-text-soft) !important; }
+.border-gray-200, .border-gray-300, .border-gray-100 { border-color: var(--c-border) !important; }
+
+.bg-indigo-100 { background-color: #EFF2F5 !important; color: #57606A !important; }
+.dark .bg-indigo-100 { background-color: #3A3F4B !important; color: #C8CDD6 !important; }
+
+.bg-blue-600, label.bg-blue-600 { background-color: #AABDCD !important; }
+.hover\:bg-blue-700:hover { background-color: #9DB0C0 !important; }
+.dark .bg-blue-600, .dark label.bg-blue-600 { background-color: #AABDCD !important; }
+.dark .hover\:bg-blue-700:hover { background-color: #9DB0C0 !important; }
+
+.bg-green-600, button.bg-green-600 { background-color: #ADC9B9 !important; }
+.hover\:bg-green-700:hover { background-color: #9EBBAB !important; }
+.dark .bg-green-600, .dark button.bg-green-600 { background-color: #ADC9B9 !important; }
+.dark .hover\:bg-green-700:hover { background-color: #9EBBAB !important; }
+
+.bg-red-600 { background-color: #C88B8B !important; }
+.hover\:bg-red-700:hover { background-color: #B87B7B !important; }
+.dark .bg-red-600 { background-color: #C88B8B !important; }
+.dark .hover\:bg-red-700:hover { background-color: #B87B7B !important; }
+
+.rounded-md, .rounded-lg { border-radius: 0.5rem; }
+
+input, select, textarea {
+    font-size: 0.875rem;
+    padding: 0.5rem 0.75rem;
+    border-color: var(--c-border);
+    background-color: var(--c-card);
+    color: var(--c-text);
+}
+
+.dark input, .dark select, .dark textarea {
+    background-color: var(--c-card);
+    color: var(--c-text);
+}
+
+.dark .rewatch-btn {
+    background-color: rgba(167, 192, 204, 0.15) !important;
+    color: #A7C0CC !important;
+}
+.dark .rewatch-btn:hover {
+    background-color: rgba(167, 192, 204, 0.25) !important;
+}
+.dark .delete-group-btn {
+    background-color: rgba(200, 139, 139, 0.15) !important;
+    color: #C88B8B !important;
+}
+.dark .delete-group-btn:hover {
+    background-color: rgba(200, 139, 139, 0.25) !important;
+}
+
+.bg-blue-500 { background-color: var(--c-book) !important; }
+.bg-green-500 { background-color: var(--c-movie) !important; }
+.bg-orange-500 { background-color: var(--c-anime) !important; }
+.bg-purple-500 { background-color: var(--c-series) !important; }
+.bg-pink-500 { background-color: var(--c-variety) !important; }
+
+.border-indigo-500 { border-color: var(--c-accent) !important; }
+
+/* 下拉框使用浏览器默认样式 */
+
+/* 焦点环颜色统一 */
+.focus\:ring-indigo-300:focus {
+    --tw-ring-color: var(--c-accent) !important;
+}

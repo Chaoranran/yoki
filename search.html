@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>又记 - 搜索</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: { extend: {} }
+        }
+    </script>
+    <link rel="stylesheet" href="styles/theme.css">
+    <style>
+        .search-result-item { transition: background-color 0.15s; }
+        .search-result-item:hover { background-color: var(--c-gray-100); }
+        .highlight { background-color: rgba(159, 184, 196, 0.3); padding: 0 2px; border-radius: 2px; }
+        .dark .highlight { background-color: rgba(167, 192, 204, 0.25); }
+        .tag-pill {
+            display: inline-block;
+            background-color: rgba(159, 184, 196, 0.15);
+            color: var(--c-accent);
+            font-size: 0.65rem;
+            padding: 0.05rem 0.4rem;
+            border-radius: 9999px;
+            margin-right: 0.15rem;
+        }
+        .dark .tag-pill {
+            background-color: rgba(167, 192, 204, 0.2);
+            color: var(--c-accent);
+        }
+    </style>
+    <script src="common.js"></script>
+    <script src="components/sidebar.js"></script>
+    <script src="components/icons.js"></script>
+    <script src="db.js"></script>
+</head>
+<body class="min-h-screen">
+    <div class="flex">
+        <div id="sidebar-container"></div>
+
+        <div class="flex-1 ml-16 p-8">
+            <div class="max-w-4xl mx-auto">
+                <div class="text-center mb-8">
+                    <h1 class="text-2xl font-bold text-gray-600 mb-4 inline-flex items-center gap-2"><svg class="w-5 h-5" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m19 19-4.35-4.35M17 9A8 8 0 1 0 1 9a8 8 0 0 0 16 0Z"/></svg> 全局搜索</h1>
+                    <div class="relative max-w-xl mx-auto">
+                        <input type="text" id="globalSearchBox" placeholder="搜索书影音记录或笔记..." class="w-full border border-gray-300 rounded-lg p-3 text-base shadow-sm focus:ring-2 focus:ring-indigo-300 focus:border-indigo-500 outline-none" autofocus>
+                    </div>
+                </div>
+
+                <div id="searchResults" class="hidden">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <h2 class="text-lg font-bold text-gray-600 mb-3 flex items-center gap-2">
+                                <span>书影音</span>
+                                <span id="mediaCount" class="text-sm font-normal text-gray-500"></span>
+                            </h2>
+                            <div id="mediaResults" class="space-y-2"></div>
+                        </div>
+                        <div>
+                            <h2 class="text-lg font-bold text-gray-600 mb-3 flex items-center gap-2">
+                                <span>笔记</span>
+                                <span id="notesCount" class="text-sm font-normal text-gray-500"></span>
+                            </h2>
+                            <div id="notesResults" class="space-y-2"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="emptyState" class="text-center py-16">
+                    <p class="text-gray-400">输入关键词，同时搜索书影音记录和笔记</p>
+                    <p class="text-gray-400 text-xs mt-2">支持标题、作者、想法、书摘、标签等字段</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let records = [];
+        let folderHandle = null;
+
+        async function init() {
+            initPage('search');
+            records = await loadRecords();
+            folderHandle = await getFolderHandle();
+
+            const params = new URLSearchParams(window.location.search);
+            const query = params.get('q');
+            if (query) {
+                document.getElementById('globalSearchBox').value = query;
+                performSearch(query);
+            }
+
+            document.getElementById('globalSearchBox').addEventListener('input', (e) => {
+                const kw = e.target.value.trim();
+                if (kw.length >= 1) {
+                    performSearch(kw);
+                } else {
+                    document.getElementById('searchResults').classList.add('hidden');
+                    document.getElementById('emptyState').classList.remove('hidden');
+                }
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+                    e.preventDefault();
+                    document.getElementById('globalSearchBox').focus();
+                }
+            });
+        }
+
+        function highlightText(text, keyword) {
+            if (!keyword) return escapeHtml(text);
+            const escaped = escapeHtml(text);
+            const escapedKw = escapeHtml(keyword);
+            const regex = new RegExp(`(${escapedKw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+            return escaped.replace(regex, '<span class="highlight">$1</span>');
+        }
+
+        async function performSearch(keyword) {
+            const kw = keyword.toLowerCase();
+            document.getElementById('searchResults').classList.remove('hidden');
+            document.getElementById('emptyState').classList.add('hidden');
+
+            const mediaResults = searchMedia(kw);
+            const notesResults = await searchNotes(kw);
+
+            document.getElementById('mediaCount').textContent = mediaResults.length > 0 ? `(${mediaResults.length} 条)` : '';
+            document.getElementById('notesCount').textContent = notesResults.length > 0 ? `(${notesResults.length} 篇)` : '';
+
+            if (mediaResults.length === 0 && notesResults.length === 0) {
+                document.getElementById('searchResults').classList.add('hidden');
+                document.getElementById('emptyState').classList.remove('hidden');
+                document.getElementById('emptyState').innerHTML = '<p class="text-gray-400 text-lg">没有找到相关结果</p><p class="text-gray-400 text-xs mt-2">试试其他关键词</p>';
+                return;
+            }
+
+            renderMediaResults(mediaResults, keyword);
+            renderNotesResults(notesResults, keyword);
+        }
+
+        function searchMedia(kw) {
+            return records.filter(r => {
+                const fields = [r.title, r.author, r.translator, ...(r.tags || []), r.thoughts, r.quote, r.country, r.status].filter(Boolean);
+                return fields.some(f => String(f).toLowerCase().includes(kw));
+            });
+        }
+
+        async function searchNotes(kw) {
+            if (!folderHandle) return [];
+            const results = [];
+            try {
+                for await (const entry of folderHandle.values()) {
+                    if (entry.kind === 'file' && entry.name.endsWith('.md')) {
+                        const file = await entry.getFile();
+                        const content = await file.text();
+                        if (content.toLowerCase().includes(kw) || entry.name.toLowerCase().includes(kw)) {
+                            const isPinned = entry.name.startsWith('!');
+                            const displayName = isPinned ? entry.name.slice(1, -3) : entry.name.slice(0, -3);
+                            results.push({
+                                name: entry.name,
+                                displayName,
+                                content,
+                                lastModified: file.lastModified,
+                                tags: parseTags(content),
+                                preview: getPreview(content, kw),
+                            });
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('搜索笔记失败', e);
+            }
+            return results;
+        }
+
+        function parseTags(content) {
+            const firstLine = content.split('\n')[0] || '';
+            if (firstLine.startsWith('tags:')) {
+                return firstLine.slice(5).split(/[,，]/).map(t => t.trim()).filter(t => t);
+            }
+            return [];
+        }
+
+        function getPreview(content, kw) {
+            const lower = content.toLowerCase();
+            const idx = lower.indexOf(kw);
+            if (idx === -1) return content.substring(0, 100);
+            const start = Math.max(0, idx - 40);
+            const end = Math.min(content.length, idx + kw.length + 60);
+            let preview = content.substring(start, end);
+            if (start > 0) preview = '...' + preview;
+            if (end < content.length) preview = preview + '...';
+            return preview;
+        }
+
+        function getTypeName(type) {
+            const map = { book: '书籍', movie: '电影', anime: '动漫', series: '剧集', variety: '综艺' };
+            return map[type] || type;
+        }
+
+        function renderMediaResults(results, keyword) {
+            const container = document.getElementById('mediaResults');
+            if (results.length === 0) {
+                container.innerHTML = '<p class="text-sm text-gray-400">未找到匹配的书影音记录</p>';
+                return;
+            }
+            container.innerHTML = results.map(r => {
+                const titleHtml = highlightText(r.title, keyword);
+                const authorHtml = r.author ? `<span class="text-xs text-gray-500">${highlightText(r.author, keyword)}</span>` : '';
+                const thoughtsHtml = r.thoughts ? `<p class="text-xs text-gray-500 mt-1 line-clamp-2">${highlightText(String(r.thoughts).substring(0, 80), keyword)}</p>` : '';
+                return `
+                    <a href="index.html?type=${r.type}" class="search-result-item block p-3 rounded-lg border border-gray-200">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded">${getTypeName(r.type)}</span>
+                            <span class="font-medium text-sm text-gray-600">${titleHtml}</span>
+                            ${authorHtml}
+                        </div>
+                        ${thoughtsHtml}
+                    </a>
+                `;
+            }).join('');
+        }
+
+        function renderNotesResults(results, keyword) {
+            const container = document.getElementById('notesResults');
+            if (results.length === 0) {
+                container.innerHTML = '<p class="text-sm text-gray-400">未找到匹配的笔记</p>';
+                return;
+            }
+            container.innerHTML = results.map(nf => {
+                const titleHtml = highlightText(nf.displayName, keyword);
+                const previewHtml = highlightText(nf.preview, keyword);
+                const tagsHtml = nf.tags.map(t => `<span class="tag-pill">${escapeHtml(t)}</span>`).join('');
+                const dateStr = new Date(nf.lastModified).toLocaleDateString('zh-CN');
+                return `
+                    <a href="notes.html?q=${encodeURIComponent(keyword)}" class="search-result-item block p-3 rounded-lg border border-gray-200">
+                        <div class="flex items-center justify-between">
+                            <span class="font-medium text-sm text-gray-600">${titleHtml}</span>
+                            <span class="text-xs text-gray-400">${dateStr}</span>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1 line-clamp-2">${previewHtml}</p>
+                        <div class="mt-1">${tagsHtml}</div>
+                    </a>
+                `;
+            }).join('');
+        }
+
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

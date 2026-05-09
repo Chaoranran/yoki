@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>又记 - 添加/编辑</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: { extend: {} }
+        }
+    </script>
+    <link rel="stylesheet" href="styles/theme.css">
+    <script src="common.js"></script>
+    <script src="components/sidebar.js"></script>
+    <script src="db.js"></script>
+    <script src="notes-common.js"></script>
+</head>
+<body class="min-h-screen">
+    <div class="flex">
+        <div id="sidebar-container"></div>
+
+        <div class="flex-1 ml-16 p-8">
+            <div class="max-w-6xl mx-auto">
+                <form id="recordForm" class="bg-white p-6 rounded-lg shadow-md space-y-4">
+                    <div>
+                        <label for="title" class="block text-sm font-medium text-gray-600">作品名称</label>
+                        <input type="text" id="title" name="title" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="type" class="block text-sm font-medium text-gray-600">类型</label>
+                            <select id="type" name="type" required class="mt-1 block w-full border-0 border-b-2 border-gray-200 text-sm p-1.5 focus:outline-none focus:border-indigo-500 bg-white dark:bg-gray-800">
+                                <option value="book">书籍</option>
+                                <option value="movie">电影</option>
+                                <option value="anime">动漫</option>
+                                <option value="series">剧集</option>
+                                <option value="variety">综艺</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="status" class="block text-sm font-medium text-gray-600">状态</label>
+                            <select id="status" name="status" class="mt-1 block w-full border-0 border-b-2 border-gray-200 text-sm p-1.5 focus:outline-none focus:border-indigo-500 bg-white dark:bg-gray-800">
+                                <option value="">请选择</option>
+                                <option value="想看">想看</option>
+                                <option value="已看">已看</option>
+                                <option value="在看">在看</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="tags" class="block text-sm font-medium text-gray-600">所属标签</label>
+                            <div style="position:relative">
+                                <input type="text" id="tags" name="tags" placeholder="多个标签请用逗号分隔" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" autocomplete="off">
+                                <div id="tagSuggestions" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:9999;background:#fff;border:1px solid var(--c-border,#e5e7eb);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.12);max-height:200px;overflow-y:auto;margin-top:2px;"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <label for="watchCount" class="block text-sm font-medium text-gray-600">观看次数</label>
+                            <input type="number" id="watchCount" name="watchCount" min="1" value="1" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="startDate" class="block text-sm font-medium text-gray-600">开始时间</label>
+                            <input type="date" id="startDate" name="startDate" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                        </div>
+                        <div>
+                            <label for="endDate" class="block text-sm font-medium text-gray-600">结束时间</label>
+                            <input type="date" id="endDate" name="endDate" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                        </div>
+                    </div>
+                    <div id="authorFields" class="grid grid-cols-1 md:grid-cols-2 gap-4" style="display:none;">
+                        <div>
+                            <label for="author" class="block text-sm font-medium text-gray-600">作者</label>
+                            <input type="text" id="author" name="author" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                        </div>
+                        <div>
+                            <label for="translator" class="block text-sm font-medium text-gray-600">译者</label>
+                            <input type="text" id="translator" name="translator" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                        </div>
+                    </div>
+                    <div id="mediaFields" class="grid grid-cols-1 md:grid-cols-2 gap-4" style="display:none;">
+                        <div>
+                            <label for="country" class="block text-sm font-medium text-gray-600">国别</label>
+                            <select id="country" name="country" class="mt-1 block w-full border-0 border-b-2 border-gray-200 text-sm p-1.5 focus:outline-none focus:border-indigo-500 bg-white dark:bg-gray-800">
+                                <option value="">请选择</option>
+                                <option value="欧美">欧美</option>
+                                <option value="中国">中国</option>
+                                <option value="日韩">日韩</option>
+                                <option value="亚洲">亚洲</option>
+                                <option value="其他">其他</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="releaseYear" class="block text-sm font-medium text-gray-600">上映年份</label>
+                            <input type="number" id="releaseYear" name="releaseYear" min="1900" max="2100" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                        </div>
+                    </div>
+                    <div id="episodesFields" style="display: none;">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="episodesWatched" class="block text-sm font-medium text-gray-600">已看集数</label>
+                                <input type="number" id="episodesWatched" name="episodesWatched" min="0" step="1" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                            </div>
+                            <div>
+                                <label for="episodesTotal" class="block text-sm font-medium text-gray-600">总集数</label>
+                                <input type="number" id="episodesTotal" name="episodesTotal" min="0" step="1" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="thoughts" class="block text-sm font-medium text-gray-600">想法</label>
+                            <textarea id="thoughts" name="thoughts" rows="3" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" placeholder="记录你的想法..."></textarea>
+                        </div>
+                        <div>
+                            <label for="goldenQuotes" class="block text-sm font-medium text-gray-600">金句</label>
+                            <textarea id="goldenQuotes" name="goldenQuotes" rows="3" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" placeholder="记录书中的金句..."></textarea>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="imageUrl" class="block text-sm font-medium text-gray-600">封面图片</label>
+                        <div class="mt-1 flex gap-2">
+                            <input type="url" id="imageUrl" name="imageUrl" placeholder="输入图片 URL（右键图片，复制图片链接）" class="flex-1 border border-gray-300 rounded-md shadow-sm p-2">
+                            <button type="button" id="searchImageBtn" class="px-4 py-2 border border-gray-300 text-gray-600 rounded-md hover:border-gray-400 hover:text-gray-700 transition-all whitespace-nowrap">
+                                <svg class="inline w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                                </svg>
+                                搜索
+                            </button>
+                        </div>
+                        <div id="imagePreviewContainer" class="mt-2 hidden">
+                            <p class="text-xs text-gray-500 mb-1">预览：</p>
+                            <img id="imagePreview" src="" alt="封面预览" class="max-w-48 h-auto rounded-md border border-gray-200 object-cover">
+                        </div>
+                        <div id="searchModal" class="mt-2 hidden">
+                            <p class="text-xs text-gray-500 mb-1">常用图片搜索：</p>
+                            <div class="flex flex-wrap gap-2">
+                                <a href="#" onclick="openSearch('google')" class="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200">Google 图片</a>
+                                <a href="#" onclick="openSearch('baidu')" class="px-3 py-1 text-xs bg-red-100 text-red-700 rounded-full hover:bg-red-200">百度图片</a>
+                                <a href="#" onclick="openSearch('bing')" class="px-3 py-1 text-xs bg-green-100 text-green-700 rounded-full hover:bg-green-200">Bing 图片</a>
+                                <a href="#" onclick="openSearch('douban')" class="px-3 py-1 text-xs bg-yellow-100 text-yellow-700 rounded-full hover:bg-yellow-200">豆瓣</a>
+                            </div>
+                            <div class="mt-2 p-2 bg-yellow-50 rounded-md border border-yellow-200">
+                                <p class="text-xs text-yellow-700 mb-1">💡 提示：</p>
+                                <p class="text-xs text-yellow-600">• 豆瓣图片有防盗链保护，建议使用Google/百度图片搜索</p>
+                                <p class="text-xs text-yellow-600">• 复制图片链接时，选择"复制图像地址"或"复制图片链接"</p>
+                                <p class="text-xs text-yellow-600">• 如预览失败，可尝试其他搜索引擎的图片</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between gap-4 pt-2">
+                        <label class="inline-flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+                            <input type="checkbox" id="continueAdding" class="w-4 h-4">
+                            保存后继续添加                        </label>
+                        <button type="submit" id="submitBtn" class="bg-indigo-600 text-white py-2 px-6 rounded-md shadow-sm hover:bg-indigo-700">提交记录</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let records = [];
+        let editingRecordId = null;
+        let isRewatchMode = false;
+
+        async function init() {
+            initPage('add', loadRecords, saveRecords);
+            records = await loadRecords();
+            bindFormSubmit();
+            bindTypeChange();
+            bindEndDateChange();
+            bindImagePasteWarning();
+            bindImagePreview();
+            bindSearchButton();
+            bindTagAutocomplete();
+            updateFieldVisibility();
+
+            const params = new URLSearchParams(window.location.search);
+            const id = params.get('id');
+            if (id) {
+                editingRecordId = parseInt(id);
+                const record = records.find(r => r.id === editingRecordId);
+                if (record) enterEditMode(record);
+                return;
+            }
+            if (params.get('rewatch') === '1') {
+                const title = params.get('title') || '';
+                const type = params.get('type') || '';
+                const latest = getLatestRecordByTitleType(title, type);
+                if (latest) enterRewatchMode(latest);
+            }
+        }
+
+        function getLatestRecordByTitleType(title, type) {
+            const matched = records.filter(r => r.title === title && r.type === type);
+            if (matched.length === 0) return null;
+            return matched.reduce((a, b) => (a.id > b.id) ? a : b);
+        }
+
+        function enterEditMode(record) {
+            fillFormFromRecord(record);
+            document.getElementById('submitBtn').textContent = '更新记录';
+            editingRecordId = record.id;
+        }
+
+        function enterRewatchMode(record) {
+            fillFormFromRecord(record);
+            document.getElementById('watchCount').value = (record.watchCount || 1) + 1;
+            document.getElementById('startDate').value = new Date().toISOString().split('T')[0];
+            document.getElementById('endDate').value = new Date().toISOString().split('T')[0];
+            document.getElementById('status').value = '已看';
+            document.getElementById('submitBtn').textContent = '提交记录';
+            editingRecordId = null;
+            isRewatchMode = true;
+        }
+
+        function fillFormFromRecord(record) {
+            document.getElementById('title').value = record.title || '';
+            document.getElementById('type').value = record.type || 'book';
+            document.getElementById('watchCount').value = record.watchCount || 1;
+            document.getElementById('startDate').value = record.startDate || '';
+            document.getElementById('endDate').value = record.endDate || '';
+            document.getElementById('releaseYear').value = record.releaseYear || '';
+            document.getElementById('country').value = record.country || '';
+            document.getElementById('author').value = record.author || '';
+            document.getElementById('translator').value = record.translator || '';
+            document.getElementById('status').value = record.status || '';
+            document.getElementById('tags').value = Array.isArray(record.tags) ? record.tags.join(', ') : (record.tags || '');
+            document.getElementById('imageUrl').value = record.imageUrl || '';
+            document.getElementById('episodesTotal').value = record.episodesTotal || '';
+            document.getElementById('episodesWatched').value = record.episodesWatched || '';
+            document.getElementById('thoughts').value = record.thoughts || '';
+            document.getElementById('goldenQuotes').value = record.goldenQuotes || '';
+            updateFieldVisibility();
+            if (record.imageUrl) {
+                const img = document.getElementById('imagePreview');
+                const container = document.getElementById('imagePreviewContainer');
+                if (img && container) { img.src = record.imageUrl; container.classList.remove('hidden'); }
+            }
+        }
+
+        function updateFieldVisibility() {
+            const type = document.getElementById('type').value;
+            const status = document.getElementById('status').value;
+
+            const authorFields = document.getElementById('authorFields');
+            if (authorFields) authorFields.style.display = type === 'book' ? 'grid' : 'none';
+
+            const mediaFields = document.getElementById('mediaFields');
+            if (mediaFields) mediaFields.style.display = (type === 'movie' || type === 'series' || type === 'anime' || type === 'variety') ? 'grid' : 'none';
+
+            const episodesFields = document.getElementById('episodesFields');
+            if (episodesFields) episodesFields.style.display = (status === '在看' && (type === 'series' || type === 'anime' || type === 'variety')) ? 'grid' : 'none';
+
+            const releaseYearField = document.getElementById('releaseYear')?.closest('div');
+            if (releaseYearField) {
+                releaseYearField.style.display = type === 'movie' ? '' : 'none';
+            }
+        }
+
+        function bindTypeChange() {
+            document.getElementById('type')?.addEventListener('change', updateFieldVisibility);
+            document.getElementById('status')?.addEventListener('change', updateFieldVisibility);
+        }
+
+        function bindEndDateChange() {
+            const endDateInput = document.getElementById('endDate');
+            const statusSelect = document.getElementById('status');
+            if (!endDateInput || !statusSelect) return;
+            endDateInput.addEventListener('change', () => {
+                if (endDateInput.value) {
+                    statusSelect.value = '已看';
+                }
+            });
+        }
+
+        function bindFormSubmit() {
+            const form = document.getElementById('recordForm');
+            if (!form) return;
+            form.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const type = document.getElementById('type').value;
+                const status = document.getElementById('status').value;
+                let episodesTotal = null, episodesWatched = null;
+                if (status === '在看' && (type === 'series' || type === 'anime' || type === 'variety')) {
+                    episodesTotal = document.getElementById('episodesTotal').value ? parseInt(document.getElementById('episodesTotal').value) : null;
+                    episodesWatched = document.getElementById('episodesWatched').value ? parseInt(document.getElementById('episodesWatched').value) : null;
+                }
+                const recordData = {
+                    title: document.getElementById('title').value.trim(),
+                    type: type,
+                    watchCount: parseInt(document.getElementById('watchCount').value) || 1,
+                    startDate: document.getElementById('startDate').value,
+                    endDate: document.getElementById('endDate').value,
+                    releaseYear: document.getElementById('releaseYear').value ? parseInt(document.getElementById('releaseYear').value) : '',
+                    country: document.getElementById('country').value,
+                    author: document.getElementById('author').value.trim(),
+                    translator: document.getElementById('translator').value.trim(),
+                    status: status,
+                    tags: document.getElementById('tags').value.trim().split(/[,，]/).map(t => t.trim()).filter(t => t),
+                    imageUrl: document.getElementById('imageUrl').value.trim(),
+                    episodesTotal: episodesTotal,
+                    episodesWatched: episodesWatched,
+                    thoughts: document.getElementById('thoughts').value.trim(),
+                    goldenQuotes: document.getElementById('goldenQuotes').value.trim()
+                };
+                if (!recordData.title) { alert('请填写作品名称'); return; }
+                if (episodesTotal !== null && episodesWatched !== null && episodesWatched > episodesTotal) {
+                    alert('已看集数不能大于总集数'); return;
+                }
+
+                if (editingRecordId !== null) {
+                    await updateRecord(editingRecordId, recordData);
+                    await syncThoughtsToSummary(recordData.title, recordData.type, recordData.thoughts);
+                    await syncGoldenQuotesToSummary(recordData.title, recordData.type, recordData.goldenQuotes);
+                    alert('记录更新成功！');
+                } else {
+                    recordData.id = Date.now();
+                    await addRecord(recordData);
+                    await syncThoughtsToSummary(recordData.title, recordData.type, recordData.thoughts);
+                    await syncGoldenQuotesToSummary(recordData.title, recordData.type, recordData.goldenQuotes);
+                    alert(isRewatchMode ? '再刷一次记录成功！' : '记录添加成功！');
+                }
+
+                if (document.getElementById('continueAdding').checked) {
+                    document.getElementById('recordForm').reset();
+                    document.getElementById('watchCount').value = 1;
+                    editingRecordId = null;
+                    isRewatchMode = false;
+                    document.getElementById('submitBtn').textContent = '提交记录';
+                    document.getElementById('imagePreviewContainer')?.classList.add('hidden');
+                    updateFieldVisibility();
+                } else {
+                    window.location.href = 'index.html';
+                }
+            });
+        }
+
+        function bindImagePasteWarning() {
+            const input = document.getElementById('imageUrl');
+            if (input) {
+                input.addEventListener('paste', function(e) {
+                    const items = (e.clipboardData || window.clipboardData).items;
+                    for (let item of items) {
+                        if (item.type.indexOf('image') !== -1 && item.type !== 'text/plain') {
+                            e.preventDefault();
+                            alert('请不要直接粘贴图片文件，请右键图片，复制图像链接（URL）后粘贴');
+                            return;
+                        }
+                    }
+                });
+            }
+        }
+
+        function bindImagePreview() {
+            const input = document.getElementById('imageUrl');
+            const img = document.getElementById('imagePreview');
+            const container = document.getElementById('imagePreviewContainer');
+            if (input && img && container) {
+                input.addEventListener('input', function() {
+                    const url = this.value.trim();
+                    if (url) {
+                        img.src = url;
+                        img.onload = () => container.classList.remove('hidden');
+                        img.onerror = () => container.classList.add('hidden');
+                    } else {
+                        container.classList.add('hidden');
+                    }
+                });
+            }
+        }
+
+        function bindSearchButton() {
+            const btn = document.getElementById('searchImageBtn');
+            const modal = document.getElementById('searchModal');
+            if (btn && modal) btn.addEventListener('click', () => modal.classList.toggle('hidden'));
+        }
+
+        function bindTagAutocomplete() {
+            const input = document.getElementById('tags');
+            const suggestions = document.getElementById('tagSuggestions');
+            if (!input || !suggestions) return;
+
+            function getAllExistingTags() {
+                const tagCount = {};
+                records.forEach(r => {
+                    if (Array.isArray(r.tags)) r.tags.forEach(t => { if (t) tagCount[t] = (tagCount[t] || 0) + 1; });
+                });
+                return Object.entries(tagCount).sort((a, b) => b[1] - a[1]);
+            }
+
+            function showSuggestions(filter) {
+                const allTags = getAllExistingTags();
+                const currentInputTags = input.value.split(/[,，]/).map(t => t.trim()).filter(t => t);
+                const lastPart = currentInputTags.length > 0 ? currentInputTags[currentInputTags.length - 1].toLowerCase() : '';
+                const filtered = lastPart ? allTags.filter(([tag]) => tag.toLowerCase().includes(lastPart) && !currentInputTags.slice(0, -1).includes(tag)) : [];
+                if (filtered.length === 0) { suggestions.style.display = 'none'; return; }
+                suggestions.innerHTML = filtered.map(([tag, count]) =>
+                    `<button type="button" class="w-full text-left px-3 py-1.5 hover:bg-gray-100 text-sm text-gray-700" data-tag="${escapeAttr(tag)}">${escapeHtml(tag)} <span class="text-xs text-gray-400">(${count})</span></button>`
+                ).join('');
+                suggestions.style.display = 'block';
+                suggestions.querySelectorAll('button').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        currentInputTags[currentInputTags.length - 1] = btn.dataset.tag;
+                        input.value = currentInputTags.join(', ') + ', ';
+                        suggestions.style.display = 'none';
+                        input.focus();
+                    });
+                });
+            }
+
+            input.addEventListener('input', () => showSuggestions(input.value));
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') suggestions.style.display = 'none';
+                if (e.key === 'Enter' || e.key === ',') setTimeout(() => suggestions.style.display = 'none', 100);
+            });
+            input.addEventListener('blur', () => setTimeout(() => suggestions.style.display = 'none', 200));
+            input.addEventListener('focus', () => {
+                if (input.value) showSuggestions(input.value);
+            });
+        }
+
+        function openSearch(searchType) {
+            const title = document.getElementById('title').value.trim();
+            const type = document.getElementById('type').value;
+            let query = title;
+            if (type === 'book') query += ' 书籍封面';
+            else if (type === 'movie') query += ' 电影海报';
+            else if (type === 'anime') query += ' 动漫封面';
+            else if (type === 'series') query += ' 剧集海报';
+            else if (type === 'variety') query += ' 综艺海报';
+            let url = '';
+            switch(searchType) {
+                case 'google': url = `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(query)}`; break;
+                case 'baidu': url = `https://image.baidu.com/search/index?tn=baiduimage&word=${encodeURIComponent(query)}`; break;
+                case 'bing': url = `https://www.bing.com/images/search?q=${encodeURIComponent(query)}`; break;
+                case 'douban':
+                    if (type === 'movie' || type === 'series') url = `https://search.douban.com/movie/subject_search?search_text=${encodeURIComponent(title)}`;
+                    else url = `https://search.douban.com/book/subject_search?search_text=${encodeURIComponent(title)}`;
+                    break;
+            }
+            if (url) window.open(url, '_blank');
+        }
+
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

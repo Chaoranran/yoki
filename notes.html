@@ -1,0 +1,2728 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>又记 - 笔记</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: { extend: {} }
+        }
+    </script>
+    <link rel="stylesheet" href="styles/theme.css">
+    <style>
+        .tag-pill {
+            display: inline-block;
+            background-color: rgba(159, 184, 196, 0.15);
+            color: var(--c-accent);
+            font-size: 0.65rem;
+            padding: 0.05rem 0.4rem;
+            border-radius: 9999px;
+            margin-right: 0.15rem;
+        }
+        .dark .tag-pill {
+            background-color: rgba(167, 192, 204, 0.2);
+            color: var(--c-accent);
+        }
+        .tag-edit-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background-color: rgba(159, 184, 196, 0.15);
+            color: var(--c-accent);
+            font-size: 0.8rem;
+            padding: 2px 8px;
+            border-radius: 9999px;
+        }
+        .dark .tag-edit-pill {
+            background-color: rgba(167, 192, 204, 0.2);
+        }
+        .tag-edit-pill .tag-remove {
+            cursor: pointer;
+            opacity: 0.5;
+            font-size: 0.7rem;
+            line-height: 1;
+        }
+        .tag-edit-pill .tag-remove:hover {
+            opacity: 1;
+        }
+        .editor-area {
+            min-height: 400px;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            line-height: 1.7;
+        }
+        .wiki-link-text { color: var(--c-accent); text-decoration: underline; text-decoration-style: dashed; cursor: pointer; }
+        .find-match { background-color: rgba(255, 200, 0, 0.3); border-bottom: 2px solid #f59e0b; }
+        .find-match-active { background-color: rgba(255, 150, 0, 0.4); border-bottom: 3px solid #ef4444; }
+        .ProseMirror mark { background-color: rgba(255,240,150,0.45); color: inherit; border-radius: 2px; }
+
+        .ProseMirror { outline: none; min-height: 400px; padding: 1rem; font-size: 0.9375rem; line-height: 1.75; color: var(--c-text); }
+        .ProseMirror > *:first-child { margin-top: 0; }
+        .ProseMirror p { margin: 0.6em 0; }
+        .ProseMirror h1 { font-size: 1.75em; font-weight: 700; margin: 1em 0 0.4em; padding-bottom: 0.3em; border-bottom: 1px solid var(--c-border); }
+        .ProseMirror h2 { font-size: 1.4em; font-weight: 700; margin: 0.8em 0 0.3em; padding-bottom: 0.2em; border-bottom: 1px solid var(--c-border); }
+        .ProseMirror h3 { font-size: 1.2em; font-weight: 600; margin: 0.7em 0 0.3em; }
+        .ProseMirror ul { list-style-type: disc; padding-left: 1.5em; margin: 0.5em 0; }
+        .ProseMirror ol { list-style-type: decimal; padding-left: 1.5em; margin: 0.5em 0; }
+        .ProseMirror li { margin: 0.25em 0; }
+        .ProseMirror li > p { margin: 0.2em 0; }
+        .ProseMirror blockquote { border-left: 4px solid var(--c-accent); padding: 0.5em 1em; margin: 0.8em 0; background: var(--c-gray-100); border-radius: 0 4px 4px 0; color: var(--c-text-soft); }
+        .ProseMirror code { background: var(--c-gray-100); padding: 0.15em 0.4em; border-radius: 3px; font-size: 0.875em; font-family: 'Menlo', 'Consolas', monospace; }
+        .ProseMirror pre { background: var(--c-gray-100); padding: 0.8em 1em; border-radius: 6px; overflow-x: auto; margin: 0.8em 0; }
+        .ProseMirror pre code { background: none; padding: 0; font-size: 0.875em; }
+        .ProseMirror a { color: var(--c-accent); text-decoration: underline; }
+        .ProseMirror hr { border: none; border-top: 2px solid var(--c-border); margin: 1.5em 0; }
+        .ProseMirror img { max-width: 100%; border-radius: 6px; }
+        .ProseMirror strong { font-weight: 700; }
+        .ProseMirror em { font-style: italic; }
+
+        .fmt-btn {
+            padding: 8px;
+            font-size: 12px;
+            border: none;
+            border-radius: 4px;
+            background: transparent;
+            color: var(--c-text-soft);
+            cursor: pointer;
+            line-height: 1;
+            min-width: 32px;
+            min-height: 32px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.15s, background-color 0.15s;
+        }
+        .fmt-btn:hover { background: var(--c-gray-100); color: var(--c-text); }
+        .fmt-btn.active { color: var(--c-accent); }
+        .fmt-sep { width: 1px; height: 16px; background: var(--c-border); margin: 0 4px; }
+
+        .note-list-item {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--c-border);
+            cursor: pointer;
+            transition: background-color 0.15s;
+            position: relative;
+        }
+        .note-list-item:hover { background-color: var(--c-gray-100); }
+        .note-list-item.active { background-color: rgba(159, 184, 196, 0.12); }
+        .dark .note-list-item.active { background-color: rgba(167, 192, 204, 0.1); }
+        .note-list-item.pinned { border-left: 3px solid var(--c-accent); }
+        .note-list-item .item-delete {
+            position: absolute;
+            right: 0.5rem;
+            top: 50%;
+            transform: translateY(-50%);
+            opacity: 0;
+            transition: opacity 0.15s;
+            padding: 4px;
+            color: var(--c-text-soft);
+        }
+        .note-list-item:hover .item-delete { opacity: 1; }
+        .note-list-item .item-delete:hover { color: #C88B8B; }
+
+        @media (max-width: 767px) {
+            #noteSidebar { display: none !important; }
+            #noteSidebar.mobile-show { display: flex !important; width: 100% !important; min-width: 100% !important; }
+            #noteDetailArea.mobile-show { display: block !important; }
+            #noteDetailArea:not(.mobile-show) { display: none !important; }
+            #noteEmptyState { display: none !important; }
+        }
+
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white; }
+            #noteDetailArea { position: absolute; left: 0; top: 0; width: 100%; overflow: visible; }
+            #milkdown-editor, #noteEditor { max-width: 100%; box-shadow: none; }
+        }
+
+        /* 当前行高亮 */
+        .ProseMirror .active-line {
+            background-color: rgba(159,184,196,0.06);
+        }
+    </style>
+    <script src="common.js"></script>
+    <script src="components/sidebar.js"></script>
+    <script src="components/icons.js"></script>
+    <script src="db.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</head>
+<body class="min-h-screen">
+    <div class="flex">
+        <div id="sidebar-container"></div>
+
+        <div class="flex-1 ml-16">
+            <div id="noFolderHint" class="text-center py-20">
+                <p class="text-gray-400 text-lg mb-2">尚未选择笔记文件夹</p>
+                <p class="text-gray-400 text-sm mb-4">点击「选择笔记文件夹」按钮，选择一个存放 .md 文件的目录</p>
+                <button id="selectFolderBtn" class="px-4 py-2 bg-indigo-600 text-white rounded-md text-sm hover:bg-indigo-700">
+                    选择笔记文件夹
+                </button>
+                <p class="text-gray-400 text-xs mt-4">笔记以 .md 文件形式存储在本地文件夹中，脱离「又记」依然可用</p>
+            </div>
+
+            <div id="notesMainLayout" class="hidden" style="height: calc(100vh)">
+                <div class="flex h-full">
+                    <div id="noteSidebar" class="border-r border-gray-200 flex flex-col h-full overflow-hidden bg-white no-print" style="width: 280px; min-width: 180px; max-width: 500px;">
+                        <div class="p-3 border-b border-gray-200">
+                            <div class="flex items-center justify-between mb-2">
+                                <h1 class="text-lg font-bold text-gray-700">笔记 <span id="noteCount" class="text-sm font-normal text-gray-400"></span></h1>
+                                <div class="flex items-center gap-1">
+                                    <button id="batchToggleBtn" class="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300">批量</button>
+                                    <button id="newNoteBtn" class="px-3 py-1 bg-green-600 text-white rounded-md text-xs hover:bg-green-700 inline-flex items-center gap-1">
+                                        <svg class="w-3.5 h-3.5" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" d="M7 1v12M1 7h12"/></svg>
+                                        新建
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2 min-w-0">
+                                <input type="text" id="searchBox" placeholder="搜索笔记..." class="border border-gray-300 rounded-md p-1.5 text-xs flex-1 min-w-0 outline-none">
+                                <button id="tagToggleBtn" class="px-1.5 py-1 border border-gray-300 rounded-md text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 flex-shrink-0" title="显示/隐藏标签">
+                                    <svg class="w-3.5 h-3.5" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 3.5h7.5a2.5 2.5 0 0 1 0 5H4l-3 3v-8z"/><path d="M8.5 3.5H12a1.5 1.5 0 0 1 0 3H10"/></svg>
+                                </button>
+                                <select id="sortSelect" class="border border-gray-300 rounded-md p-1.5 text-xs flex-shrink-0 outline-none">
+                                    <option value="modified">最近修改</option>
+                                    <option value="created">创建时间</option>
+                                    <option value="opened">最近打开</option>
+                                    <option value="frequency">修改频率</option>
+                                    <option value="title">标题</option>
+                                </select>
+                                <button id="sortOrderBtn" class="p-1.5 border border-gray-300 rounded-md text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 flex-shrink-0" title="切换排序方向">
+                                    <svg class="w-3.5 h-3.5" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 3v8"/><path d="M4 6l3-3 3 3"/></svg>
+                                </button>
+                            </div>
+                            <div id="batchToolbar" class="hidden mt-2 flex items-center gap-2">
+                                <label class="inline-flex items-center gap-1 text-xs text-gray-600 cursor-pointer">
+                                    <input type="checkbox" id="batchSelectAll" class="w-4 h-4">
+                                    全选
+                                </label>
+                                <button id="batchDeleteBtn" class="px-3 py-1 bg-red-600 text-white rounded-md text-xs hover:bg-red-700">批量删除</button>
+                                <button id="batchCancelBtn" class="px-3 py-1 bg-gray-200 text-gray-700 rounded-md text-xs hover:bg-gray-300">取消</button>
+                                <span id="batchCount" class="text-xs text-gray-500"></span>
+                            </div>
+                        </div>
+                        <div id="tagCloudSection" class="px-3 py-2 border-b border-gray-200 hidden">
+                            <div class="flex flex-wrap items-center gap-1">
+                                <span class="text-xs text-gray-500 font-medium">标签：</span>
+                                <div id="noteTagCloud" class="flex flex-wrap gap-1"></div>
+                            </div>
+                        </div>
+                        <div id="noteList" class="flex-1 overflow-y-auto"></div>
+                        <div id="trashPanel" class="hidden flex-1 overflow-y-auto flex flex-col">
+                            <div class="p-3 border-b border-gray-200 flex items-center justify-between">
+                                <h2 class="text-sm font-bold text-gray-700">回收站</h2>
+                                <button id="closeTrashBtn" class="text-xs text-gray-400 hover:text-gray-600">← 返回</button>
+                            </div>
+                            <div id="trashList" class="flex-1 overflow-y-auto"></div>
+                            <div class="p-2 border-t border-gray-200">
+                                <button id="clearTrashBtn" class="w-full text-xs text-red-400 hover:text-red-600 py-1">清空回收站</button>
+                            </div>
+                        </div>
+                        <div class="p-2 border-t border-gray-200 flex flex-col gap-1">
+                            <div class="flex items-center justify-between">
+                                <label class="inline-flex items-center gap-1 text-xs text-gray-500 cursor-pointer" title="隐藏已归档笔记（含 #归档 标签）">
+                                    <input type="checkbox" id="hideArchivedToggle">
+                                    隐藏已归档
+                                </label>
+                                <button id="backupBtn" class="text-xs text-gray-400 hover:text-indigo-600 inline-flex items-center gap-1" title="一键备份所有笔记为 ZIP">
+                                    <svg class="w-3.5 h-3.5" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1"><path stroke-linecap="round" stroke-linejoin="round" d="M10 3v10m0 0-3-3m3 3 3-3"/><path d="M4 14v3h12v-3"/></svg>
+                                    备份
+                                </button>
+                            </div>
+                            <div id="backupReminder" class="text-xs text-gray-300 hidden">上次备份超过 14 天</div>
+                            <div class="flex items-center justify-between">
+                                <span id="folderStatus" class="text-xs text-gray-400">已连接笔记文件夹</span>
+                                <button id="trashBtn" class="text-xs text-gray-400 hover:text-indigo-600 inline-flex items-center gap-1">
+                                    <svg class="w-3.5 h-3.5" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1"><path stroke-linecap="round" stroke-linejoin="round" d="M4 5h12M7 5V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m1 0v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V5h7Z"/></svg>
+                                    回收站
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="sidebarResizer" class="w-1 cursor-col-resize hover:bg-gray-400 active:bg-gray-500 flex-shrink-0 transition-colors no-print" title="拖拽调整宽度"></div>
+
+                    <div id="noteDetailArea" class="flex-1 flex flex-col overflow-hidden">
+                        <div id="noteEmptyState" class="flex items-center justify-center h-full text-gray-400">
+                            <div class="text-center">
+                                <p class="text-lg mb-1">选择一篇笔记</p>
+                                <p class="text-sm">或点击「新建」创建新笔记</p>
+                            </div>
+                        </div>
+                        <div id="noteEditorArea" class="hidden flex-1 overflow-y-auto">
+                            <div id="formatBarContainer" class="sticky top-0 z-10 bg-white border-b border-gray-200 hidden no-print">
+                                <div class="mx-auto px-6 sm:px-10 lg:px-16" style="max-width: min(100%, 56rem);">
+                                    <div id="formatBar" class="flex items-center justify-between py-1.5">
+                                        <div class="flex items-center gap-0.5">
+                                            <button class="fmt-btn" data-action="undo" title="撤销 Ctrl+Z"><svg class="w-3.5 h-3.5" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7h10a4 4 0 0 1 0 8H7"/><path stroke-linecap="round" stroke-linejoin="round" d="m7 11-4 4 4 4"/></svg></button>
+                                            <button class="fmt-btn" data-action="redo" title="重做 Ctrl+Y"><svg class="w-3.5 h-3.5" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M17 7H7a4 4 0 0 0 0 8h6"/><path stroke-linecap="round" stroke-linejoin="round" d="m13 11 4-4-4-4"/></svg></button>
+                                            <span class="fmt-sep"></span>
+                                            <button class="fmt-btn" data-action="h1" title="一级标题">H1</button>
+                                            <button class="fmt-btn" data-action="h2" title="二级标题">H2</button>
+                                            <button class="fmt-btn" data-action="h3" title="三级标题">H3</button>
+                                            <span class="fmt-sep"></span>
+                                            <button class="fmt-btn" data-action="bold" title="加粗 Ctrl+B"><b>B</b></button>
+                                            <button class="fmt-btn" data-action="italic" title="斜体 Ctrl+I"><i>I</i></button>
+                                            <button class="fmt-btn" data-action="code" title="行内代码">&lt;/&gt;</button>
+                                            <span class="fmt-sep"></span>
+                                            <button class="fmt-btn" data-action="quote" title="引用">❝</button>
+                                            <button class="fmt-btn" data-action="hr" title="分割线">——</button>
+                                            <span class="fmt-sep"></span>
+                                            <button class="fmt-btn" data-action="task" title="待办事项 ☐">
+                                                <svg class="w-3.5 h-3.5" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="2"/></svg>
+                                            </button>
+                                            <span class="fmt-sep"></span>
+                                            <button class="fmt-btn" id="typographyBtn" title="排版设置">
+                                                <svg class="w-3.5 h-3.5" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1"><line x1="2" y1="4" x2="14" y2="4"/><line x1="2" y1="8" x2="14" y2="8"/><line x1="2" y1="12" x2="10" y2="12"/></svg>
+                                            </button>
+                                            <span class="fmt-sep"></span>
+                                            <div class="relative inline-flex">
+                                                <button class="fmt-btn" id="highlightBtn" title="荧光笔高亮">
+                                                    <svg class="w-3.5 h-3.5" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M3 11l1.5-1.5M7 7l1.5-1.5M11 3l1.5-1.5" /><path d="M11.5 2.5a1.5 1.5 0 0 1 2 2l-9 9L2 14l.5-2.5 9-9z"/></svg>
+                                                </button>
+                                                <div id="highlightColorPanel" class="hidden absolute z-50 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-2 px-2 min-w-[180px]" style="top:100%;left:0;">
+                                                    <div class="flex flex-col gap-1">
+                                                        <button class="h-color-option flex items-center gap-2 w-full text-left px-2 py-1.5 text-xs rounded hover:bg-gray-100 transition" data-color="yellow">
+                                                            <span class="inline-block w-5 h-5 rounded" style="background-color:rgba(255,240,150,0.45);border:1px solid rgba(200,180,100,0.3);"></span>
+                                                            <span>浅黄</span>
+                                                        </button>
+                                                        <button class="h-color-option flex items-center gap-2 w-full text-left px-2 py-1.5 text-xs rounded hover:bg-gray-100 transition" data-color="blue">
+                                                            <span class="inline-block w-5 h-5 rounded" style="background-color:rgba(180,200,240,0.45);border:1px solid rgba(140,160,200,0.3);"></span>
+                                                            <span>灰蓝</span>
+                                                        </button>
+                                                        <button class="h-color-option flex items-center gap-2 w-full text-left px-2 py-1.5 text-xs rounded hover:bg-gray-100 transition" data-color="green">
+                                                            <span class="inline-block w-5 h-5 rounded" style="background-color:rgba(180,230,180,0.45);border:1px solid rgba(130,190,130,0.3);"></span>
+                                                            <span>浅绿</span>
+                                                        </button>
+                                                        <button class="h-color-option flex items-center gap-2 w-full text-left px-2 py-1.5 text-xs rounded hover:bg-gray-100 transition" data-color="pink">
+                                                            <span class="inline-block w-5 h-5 rounded" style="background-color:rgba(255,200,210,0.45);border:1px solid rgba(220,160,170,0.3);"></span>
+                                                            <span>浅粉</span>
+                                                        </button>
+                                                        <button class="h-color-option flex items-center gap-2 w-full text-left px-2 py-1.5 text-xs rounded hover:bg-gray-100 transition" data-color="purple">
+                                                            <span class="inline-block w-5 h-5 rounded" style="background-color:rgba(210,190,240,0.45);border:1px solid rgba(170,150,200,0.3);"></span>
+                                                            <span>浅紫</span>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <span class="fmt-sep"></span>
+                                            <div class="relative inline-flex">
+                                                <button class="fmt-btn" id="insertImageBtn" title="插入图片">
+                                                    <svg class="w-3.5 h-3.5" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5"/><circle cx="5.5" cy="6.5" r="1.5"/><path d="M1.5 11l3.5-3 2.5 2 3-2.5L14.5 11"/></svg>
+                                                </button>
+                                                <div id="imageOptionPanel" class="hidden absolute z-50 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-2 px-2 min-w-[180px]" style="top:100%;left:0;">
+                                                    <div class="flex flex-col gap-1">
+                                                        <button class="img-option flex items-center gap-2 w-full text-left px-2 py-1.5 text-xs rounded hover:bg-gray-100 transition" data-mode="keep">
+                                                            <span class="inline-block w-4 h-4 rounded border border-gray-300 flex items-center justify-center text-gray-600 font-bold" style="line-height:1;">✓</span>
+                                                            <span>保持原图</span>
+                                                        </button>
+                                                        <button class="img-option flex items-center gap-2 w-full text-left px-2 py-1.5 text-xs rounded hover:bg-gray-100 transition" data-mode="compress">
+                                                            <span class="inline-block w-4 h-4 rounded border border-gray-300 flex items-center justify-center"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 16 16" stroke-width="1.2"><path d="M14 8H2M8 2v12"/></svg></span>
+                                                            <span>压缩图片</span>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <input type="file" id="imageFileInput" accept="image/*" class="hidden">
+                                        </div>
+                                        <span id="toolbarInfo" class="text-xs text-gray-400"></span>
+                                    </div>
+                                </div>
+                                <div id="typographyPanel" class="hidden py-2">
+                                    <div class="mx-auto px-6 sm:px-10 lg:px-16" style="max-width: min(100%, 56rem);">
+                                        <div class="flex flex-wrap gap-6">
+                                            <div>
+                                                <span class="text-xs text-gray-500 font-medium">行高</span>
+                                                <div class="flex gap-1 mt-1">
+                                                    <button class="typo-line-height px-2 py-1 text-xs rounded border border-gray-200 hover:border-indigo-400" data-value="1.4">1.4</button>
+                                                    <button class="typo-line-height px-2 py-1 text-xs rounded border border-gray-200 hover:border-indigo-400" data-value="1.6">1.6</button>
+                                                    <button class="typo-line-height px-2 py-1 text-xs rounded border border-gray-200 hover:border-indigo-400" data-value="1.8">1.8</button>
+                                                    <button class="typo-line-height px-2 py-1 text-xs rounded border border-gray-200 hover:border-indigo-400" data-value="2.0">2.0</button>
+                                                    <button class="typo-line-height px-2 py-1 text-xs rounded border border-gray-200 hover:border-indigo-400" data-value="2.5">2.5</button>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <span class="text-xs text-gray-500 font-medium">段间距</span>
+                                                <div class="flex gap-1 mt-1">
+                                                    <button class="typo-para-spacing px-2 py-1 text-xs rounded border border-gray-200 hover:border-indigo-400" data-value="0.4em">窄</button>
+                                                    <button class="typo-para-spacing px-2 py-1 text-xs rounded border border-gray-200 hover:border-indigo-400" data-value="0.8em">标准</button>
+                                                    <button class="typo-para-spacing px-2 py-1 text-xs rounded border border-gray-200 hover:border-indigo-400" data-value="1.2em">宽</button>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <span class="text-xs text-gray-500 font-medium">字号</span>
+                                                <div class="flex gap-1 mt-1">
+                                                    <button class="typo-font-size px-2 py-1 text-xs rounded border border-gray-200 hover:border-indigo-400" data-value="14px">14</button>
+                                                    <button class="typo-font-size px-2 py-1 text-xs rounded border border-gray-200 hover:border-indigo-400" data-value="15px">15</button>
+                                                    <button class="typo-font-size px-2 py-1 text-xs rounded border border-gray-200 hover:border-indigo-400" data-value="16px">16</button>
+                                                    <button class="typo-font-size px-2 py-1 text-xs rounded border border-gray-200 hover:border-indigo-400" data-value="18px">18</button>
+                                                    <button class="typo-font-size px-2 py-1 text-xs rounded border border-gray-200 hover:border-indigo-400" data-value="20px">20</button>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <span class="text-xs text-gray-500 font-medium">字间距</span>
+                                                <div class="flex gap-1 mt-1">
+                                                    <button class="typo-letter-spacing px-2 py-1 text-xs rounded border border-gray-200 hover:border-indigo-400" data-value="0">0</button>
+                                                    <button class="typo-letter-spacing px-2 py-1 text-xs rounded border border-gray-200 hover:border-indigo-400" data-value="0.5px">0.5</button>
+                                                    <button class="typo-letter-spacing px-2 py-1 text-xs rounded border border-gray-200 hover:border-indigo-400" data-value="1px">1</button>
+                                                    <button class="typo-letter-spacing px-2 py-1 text-xs rounded border border-gray-200 hover:border-indigo-400" data-value="2px">2</button>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <span class="text-xs text-gray-500 font-medium">编辑器宽度</span>
+                                                <div class="flex gap-1 mt-1">
+                                                    <button class="typo-editor-width px-2 py-1 text-xs rounded border border-gray-200 hover:border-indigo-400" data-value="48rem">窄</button>
+                                                    <button class="typo-editor-width px-2 py-1 text-xs rounded border border-gray-200 hover:border-indigo-400" data-value="56rem">标准</button>
+                                                    <button class="typo-editor-width px-2 py-1 text-xs rounded border border-gray-200 hover:border-indigo-400" data-value="72rem">宽</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="findBar" class="hidden py-1.5 border-t border-gray-200">
+                                    <div class="mx-auto px-6 sm:px-10 lg:px-16" style="max-width: min(100%, 56rem);">
+                                        <div style="display: grid; grid-template-columns: 1fr auto; gap: 0.5rem 0.25rem;">
+                                            <input type="text" id="findInput" placeholder="在编辑器中查找..." class="border border-gray-300 rounded px-2 py-1 text-xs min-w-0">
+                                            <div class="flex items-center gap-2">
+                                                <span id="findCount" class="text-xs text-gray-400 w-12 text-center shrink-0">0/0</span>
+                                                <button id="findPrevBtn" class="px-1.5 py-1 border border-gray-300 rounded text-xs text-gray-600 hover:bg-gray-100 shrink-0" title="上一个 ▲">▲</button>
+                                                <button id="findNextBtn" class="px-1.5 py-1 border border-gray-300 rounded text-xs text-gray-600 hover:bg-gray-100 shrink-0" title="下一个 ▼">▼</button>
+                                                <button id="findCloseBtn" class="px-1.5 py-1 text-xs text-gray-400 hover:text-gray-600 shrink-0" title="关闭 Esc">✕</button>
+                                            </div>
+                                            <input type="text" id="replaceInput" placeholder="替换为..." class="border border-gray-300 rounded px-2 py-1 text-xs min-w-0">
+                                            <div id="findReplaceRow" class="flex items-center gap-2">
+                                                <button id="replaceBtn" class="px-2 py-1 border border-gray-300 rounded text-xs text-gray-600 hover:bg-indigo-100 hover:border-indigo-400 shrink-0">替换</button>
+                                                <button id="replaceAllBtn" class="px-2 py-1 border border-gray-300 rounded text-xs text-gray-600 hover:bg-indigo-100 hover:border-indigo-400 shrink-0">全部替换</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="p-6">
+                                <div class="mx-auto px-6 sm:px-10 lg:px-16" style="max-width: min(100%, 56rem);">
+                                    <div class="flex items-center justify-between mb-4">
+                                        <input type="text" id="noteTitleInput" class="text-xl font-bold text-gray-700 border-none outline-none flex-1 bg-transparent" placeholder="笔记标题">
+                                        <div class="flex items-center gap-2">
+                                            <button id="pinNoteBtn" class="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 inline-flex items-center gap-1"><svg class="w-4 h-4" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1"><path stroke-linecap="round" stroke-linejoin="round" d="M14.5 5.5 11 2 8.5 4.5l-2-2L4 5l2 2-2.5 2.5L7 13l7.5-7.5Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M6.5 13.5 3 17"/></svg> 置顶</button>
+                                            <button id="exportNoteBtn" class="px-3 py-1 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 inline-flex items-center gap-1"><svg class="w-4 h-4" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1"><path stroke-linecap="round" stroke-linejoin="round" d="M10 14V3m0 11-3-3m3 3 3-3"/><path stroke-linecap="round" stroke-linejoin="round" d="M4 17h12"/></svg> 导出</button>
+                                            <button id="exportPdfBtn" class="px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 inline-flex items-center gap-1"><svg class="w-4 h-4" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1"><path stroke-linecap="round" stroke-linejoin="round" d="M5 4h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M7 2v4M13 2v4M7 9h6M7 13h4"/></svg> PDF</button>
+                                            <button id="deleteNoteBtn" class="px-3 py-1 text-sm bg-red-600 text-white rounded-md hover:bg-red-700 inline-flex items-center gap-1"><svg class="w-4 h-4" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1"><path stroke-linecap="round" stroke-linejoin="round" d="M6 6l8 8m0-8-8 8"/></svg> 删除</button>
+                                            <button id="closeNoteBtn" class="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 inline-flex items-center gap-1 md:hidden"><svg class="w-4 h-4" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10H5m0 0 3 3m-3-3 3-3"/></svg> 返回</button>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <input type="text" id="noteTagsInput" class="hidden">
+                                        <input type="text" id="noteSourceInput" class="hidden">
+                                        <div id="tagPillContainer" class="flex flex-wrap items-center gap-1.5 border border-gray-300 rounded-md p-2 min-h-[38px] cursor-text">
+                                            <div id="tagPills" class="flex flex-wrap gap-1.5"></div>
+                                            <input type="text" id="tagInput" class="flex-1 min-w-[80px] outline-none text-sm bg-transparent" placeholder="输入标签后回车">
+                                        </div>
+                                    </div>
+                                    <div id="milkdown-editor" class="w-full border border-gray-300 rounded-md editor-area"></div>
+                                    <textarea id="noteEditor" class="w-full border border-gray-300 rounded-md p-4 text-sm editor-area hidden" placeholder="开始写笔记..."></textarea>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="sticky bottom-0 bg-white border-t border-gray-200 no-print">
+                            <div class="mx-auto px-6 sm:px-10 lg:px-16 flex items-center justify-between py-2" style="max-width: min(100%, 56rem);">
+                                <span id="noteMeta" class="text-xs text-gray-400"></span>
+                                <span id="saveStatus" class="text-xs text-gray-400"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        let folderHandle = null;
+        let noteFiles = [];
+        let currentNoteFile = null;
+        let currentSortBy = localStorage.getItem('noteSortBy') || 'modified';
+        let sortAscending = localStorage.getItem('noteSortOrder') === 'asc';
+        let currentTagFilter = null;
+        let searchKeyword = '';
+        let dateFilter = '';
+        let saveTimeout = null;
+        let milkEditor = null;
+        let useMilkdown = false;
+        let currentMarkdown = '';
+        let isMobile = window.innerWidth < 768;
+        let batchMode = false;
+        let sidebarWidth = parseInt(localStorage.getItem('noteSidebarWidth')) || 280;
+        let currentTags = [];
+        let tagVisible = false;
+        let findQuery = '';
+        let findActiveIndex = 0;
+
+        const milkdownModules = {};
+
+        let _currentFileNameForCursor = null;
+
+        function saveCursorPosition(name, pos) {
+            if (name) localStorage.setItem('noteCursor_' + name, String(pos));
+        }
+
+        async function loadMilkdown() {
+            try {
+                const core = await import('https://esm.sh/@milkdown/core@7.17.2');
+                const preset = await import('https://esm.sh/@milkdown/preset-commonmark@7.17.2');
+                const clip = await import('https://esm.sh/@milkdown/plugin-clipboard@7.17.2');
+                const cur = await import('https://esm.sh/@milkdown/plugin-cursor@7.17.2');
+                const list = await import('https://esm.sh/@milkdown/plugin-listener@7.17.2');
+                const utils = await import('https://esm.sh/@milkdown/utils@7.17.2');
+                const hist = await import('https://esm.sh/@milkdown/plugin-history@7.17.2');
+
+                milkdownModules.core = core;
+                milkdownModules.preset = preset;
+                milkdownModules.clipboard = clip;
+                milkdownModules.cursor = cur;
+                milkdownModules.listener = list;
+                milkdownModules.utils = utils;
+                milkdownModules.history = hist;
+
+                const pmView = await import('https://esm.sh/prosemirror-view@1.31.0');
+                milkdownModules.pmView = pmView;
+
+                const pmState = await import('https://esm.sh/prosemirror-state@1.4.4');
+                milkdownModules.pmState = pmState;
+
+                return true;
+            } catch (e) {
+                console.warn('Milkdown 加载失败，回退到 textarea 模式', e);
+                return false;
+            }
+        }
+
+        async function initMilkdownEditor() {
+            if (!milkdownModules.core) return false;
+            try {
+                const { Editor, rootCtx, defaultValueCtx, editorViewOptionsCtx, editorViewCtx } = milkdownModules.core;
+                const { commonmark } = milkdownModules.preset;
+                const { clipboard } = milkdownModules.clipboard;
+                const { cursor } = milkdownModules.cursor;
+                const { listener, listenerCtx } = milkdownModules.listener;
+                const { history, undoCommand, redoCommand } = milkdownModules.history;
+
+                milkEditor = await Editor.make()
+                    .config((ctx) => {
+                        ctx.set(rootCtx, document.getElementById('milkdown-editor'));
+                        ctx.set(defaultValueCtx, '');
+                        ctx.update(editorViewOptionsCtx, prev => ({
+                            ...prev,
+                            attributes: { class: 'milkdown-editor' },
+                            decorations: (state) => {
+                                const { Decoration, DecorationSet } = milkdownModules.pmView;
+                                const decorations = [];
+                                const { $from } = state.selection;
+                                if ($from) {
+                                    const start = $from.before(1);
+                                    const end = $from.after(1);
+                                    if (start !== undefined && end !== undefined && end > start) {
+                                        decorations.push(Decoration.node(start, end, { class: 'active-line' }));
+                                    }
+                                }
+                                const wikiRegex = /\[\[([^\]]+)\]\]/g;
+                                const highlightRegex = /==([#$%@]?)(.+?)==/g;
+                                state.doc.descendants((node, pos) => {
+                                    if (node.isText) {
+                                        wikiRegex.lastIndex = 0;
+                                        let match;
+                                        while ((match = wikiRegex.exec(node.text)) !== null) {
+                                            const from = pos + match.index;
+                                            const to = pos + match.index + match[0].length;
+                                            decorations.push(Decoration.inline(from, to, {
+                                                class: 'wiki-link-text',
+                                                style: 'cursor: pointer;'
+                                            }));
+                                        }
+                                        highlightRegex.lastIndex = 0;
+                                        while ((match = highlightRegex.exec(node.text)) !== null) {
+                                            const marker = match[1] || '';
+                                            const content = match[2];
+                                            const start = pos + match.index;
+                                            const end = pos + match.index + match[0].length;
+                                            const innerLen = match[1].length;
+                                            const innerStart = start + 2 + innerLen;
+                                            const innerEnd = end - 2;
+                                            const bgColors = {
+                                                '': 'rgba(255,240,150,0.45)',
+                                                '#': 'rgba(180,200,240,0.45)',
+                                                '$': 'rgba(180,230,180,0.45)',
+                                                '%': 'rgba(255,200,210,0.45)',
+                                                '@': 'rgba(210,190,240,0.45)',
+                                            };
+                                            const bgColor = bgColors[marker] || bgColors[''];
+                                            const markerLen = 2 + innerLen;
+                                            decorations.push(Decoration.inline(start, start + markerLen, {
+                                                style: 'font-size: 0; opacity: 0; pointer-events: none;'
+                                            }));
+                                            if (innerEnd > innerStart) {
+                                                decorations.push(Decoration.inline(innerStart, innerEnd, {
+                                                    style: `background-color: ${bgColor}; border-radius: 2px;`
+                                                }));
+                                            }
+                                            decorations.push(Decoration.inline(end - 2, end, {
+                                                style: 'font-size: 0; opacity: 0; pointer-events: none;'
+                                            }));
+                                        }
+                                        if (findQuery) {
+                                            const lowerText = node.text.toLowerCase();
+                                            const lowerQ = findQuery.toLowerCase();
+                                            let idx = 0;
+                                            while ((idx = lowerText.indexOf(lowerQ, idx)) !== -1) {
+                                                const from = pos + idx;
+                                                const to = pos + idx + findQuery.length;
+                                                decorations.push(Decoration.inline(from, to, {
+                                                    class: 'find-match'
+                                                }));
+                                                idx += findQuery.length;
+                                            }
+                                        }
+                                    }
+                                });
+                                return DecorationSet.create(state.doc, decorations);
+                            }
+                        }));
+                        ctx.get(listenerCtx).markdownUpdated((ctx, markdown) => {
+                            currentMarkdown = markdown;
+                            document.getElementById('saveStatus').textContent = '未保存';
+                            clearTimeout(saveTimeout);
+                            saveTimeout = setTimeout(saveCurrentNote, 800);
+                            updateWordCount();
+                            updateFormatState();
+                        });
+                    })
+                    .use(commonmark)
+                    .use(clipboard)
+                    .use(history)
+                    .use(cursor)
+                    .use(listener)
+                    .create();
+
+                milkEditor.action((ctx) => {
+                    const view = ctx.get(editorViewCtx);
+                    if (view && view.dom) {
+                        view.dom.addEventListener('click', () => {
+                            const { from } = view.state.selection;
+                            if (from != null) saveCursorPosition(_currentFileNameForCursor, from);
+                        });
+                        view.dom.addEventListener('keyup', () => {
+                            const { from } = view.state.selection;
+                            if (from != null) saveCursorPosition(_currentFileNameForCursor, from);
+                        });
+                    }
+                });
+
+                return true;
+            } catch (e) {
+                console.warn('Milkdown 初始化失败，回退到 textarea', e);
+                milkEditor = null;
+                return false;
+            }
+        }
+
+        function fallbackToTextarea() {
+            document.getElementById('milkdown-editor').classList.add('hidden');
+            document.getElementById('noteEditor').classList.remove('hidden');
+            useMilkdown = false;
+            milkEditor = null;
+        }
+
+        function getEditorContent() {
+            if (useMilkdown && milkEditor && milkdownModules.utils) {
+                return currentMarkdown;
+            }
+            return document.getElementById('noteEditor').value;
+        }
+
+        function setEditorContent(content) {
+            if (useMilkdown && milkEditor && milkdownModules.utils) {
+                const { replaceAll } = milkdownModules.utils;
+                milkEditor.action(replaceAll(content, true));
+                currentMarkdown = content;
+            } else {
+                document.getElementById('noteEditor').value = content;
+            }
+        }
+
+        function updateMobileState() {
+            isMobile = window.innerWidth < 768;
+        }
+
+        function renderTagPills() {
+            const container = document.getElementById('tagPills');
+            if (!container) return;
+            container.innerHTML = currentTags.map((tag, i) =>
+                `<span class="tag-edit-pill">${escapeHtml(tag)}<span class="tag-remove" data-index="${i}">×</span></span>`
+            ).join('');
+            container.querySelectorAll('.tag-remove').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    currentTags.splice(parseInt(btn.dataset.index), 1);
+                    syncTagsToInput();
+                    renderTagPills();
+                    clearTimeout(saveTimeout);
+                    saveTimeout = setTimeout(saveCurrentNote, 300);
+                });
+            });
+        }
+
+        function syncTagsToInput() {
+            document.getElementById('noteTagsInput').value = currentTags.join(', ');
+        }
+
+        function syncTagsFromInput() {
+            const val = document.getElementById('noteTagsInput').value.trim();
+            currentTags = val ? val.split(/[,，]/).map(t => t.trim()).filter(t => t) : [];
+        }
+
+        function initTagPillInput() {
+            const tagInput = document.getElementById('tagInput');
+            const pillContainer = document.getElementById('tagPillContainer');
+            if (!tagInput || !pillContainer) return;
+
+            tagInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ',') {
+                    e.preventDefault();
+                    const val = tagInput.value.trim();
+                    if (val && !currentTags.includes(val)) {
+                        currentTags.push(val);
+                        syncTagsToInput();
+                        renderTagPills();
+                        tagInput.value = '';
+                        clearTimeout(saveTimeout);
+                        saveTimeout = setTimeout(saveCurrentNote, 300);
+                    }
+                }
+                if (e.key === 'Backspace' && !tagInput.value && currentTags.length > 0) {
+                    currentTags.pop();
+                    syncTagsToInput();
+                    renderTagPills();
+                    clearTimeout(saveTimeout);
+                    saveTimeout = setTimeout(saveCurrentNote, 300);
+                }
+            });
+
+            pillContainer.addEventListener('click', () => tagInput.focus());
+        }
+
+        function initTaskCheckbox() {
+            const editorEl = document.getElementById('milkdown-editor');
+            if (!editorEl) return;
+
+            editorEl.addEventListener('click', (e) => {
+                const target = e.target.closest('a');
+                if (target && target.href) {
+                    e.preventDefault();
+                    window.open(target.href, '_blank');
+                    return;
+                }
+
+                if (!milkEditor || !milkdownModules.core) return;
+                const view = milkEditor.action(ctx => ctx.get(milkdownModules.core.editorViewCtx));
+                if (!view) return;
+                const pos = view.posAtCoords({ left: e.clientX, top: e.clientY });
+                if (!pos) return;
+
+                const $pos = view.state.doc.resolve(pos.pos);
+                const parent = $pos.parent;
+                if (!parent || !parent.isTextblock) return;
+
+                const text = parent.textContent;
+                const lineStart = $pos.pos - $pos.parentOffset;
+                const regex = /\[( |x)\]/g;
+                let match;
+                while ((match = regex.exec(text)) !== null) {
+                    const matchStart = match.index;
+                    const matchEnd = matchStart + match[0].length;
+                    const clickOffset = $pos.parentOffset;
+                    if (clickOffset >= matchStart && clickOffset <= matchEnd) {
+                        const from = lineStart + matchStart;
+                        const to = lineStart + matchEnd;
+                        const newText = match[0] === '[ ]' ? '[x]' : '[ ]';
+                        const tr = view.state.tr.insertText(newText, from, to);
+                        view.dispatch(tr);
+                        return;
+                    }
+                }
+            });
+        }
+
+        function initSidebarResizer() {
+            const sidebar = document.getElementById('noteSidebar');
+            const resizer = document.getElementById('sidebarResizer');
+            if (!sidebar || !resizer) return;
+
+            sidebar.style.width = sidebarWidth + 'px';
+
+            let isResizing = false;
+
+            resizer.addEventListener('mousedown', (e) => {
+                isResizing = true;
+                document.body.style.cursor = 'col-resize';
+                document.body.style.userSelect = 'none';
+                const editor = document.getElementById('milkdown-editor');
+                if (editor) editor.style.pointerEvents = 'none';
+                e.preventDefault();
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isResizing) return;
+                const newWidth = Math.min(500, Math.max(180, e.clientX - sidebar.getBoundingClientRect().left));
+                sidebar.style.width = newWidth + 'px';
+                sidebarWidth = newWidth;
+            });
+
+            document.addEventListener('mouseup', () => {
+                if (!isResizing) return;
+                isResizing = false;
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+                const editor = document.getElementById('milkdown-editor');
+                if (editor) editor.style.pointerEvents = '';
+                localStorage.setItem('noteSidebarWidth', sidebarWidth);
+            });
+        }
+
+        function initTypography() {
+            const btn = document.getElementById('typographyBtn');
+            const panel = document.getElementById('typographyPanel');
+            if (!btn || !panel) return;
+
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                panel.classList.toggle('hidden');
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!panel.contains(e.target) && e.target !== btn) {
+                    panel.classList.add('hidden');
+                }
+            });
+
+            document.querySelectorAll('.typo-line-height').forEach(b => {
+                b.addEventListener('click', () => {
+                    const val = b.dataset.value;
+                    localStorage.setItem('editorLineHeight', val);
+                    applyTypography();
+                    updateTypoActiveState();
+                });
+            });
+
+            document.querySelectorAll('.typo-para-spacing').forEach(b => {
+                b.addEventListener('click', () => {
+                    const val = b.dataset.value;
+                    localStorage.setItem('editorParagraphSpacing', val);
+                    applyTypography();
+                    updateTypoActiveState();
+                });
+            });
+
+            document.querySelectorAll('.typo-font-size').forEach(b => {
+                b.addEventListener('click', () => {
+                    const val = b.dataset.value;
+                    localStorage.setItem('editorFontSize', val);
+                    applyTypography();
+                    updateTypoActiveState();
+                });
+            });
+
+            document.querySelectorAll('.typo-letter-spacing').forEach(b => {
+                b.addEventListener('click', () => {
+                    const val = b.dataset.value;
+                    localStorage.setItem('editorLetterSpacing', val);
+                    applyTypography();
+                    updateTypoActiveState();
+                });
+            });
+
+            document.querySelectorAll('.typo-editor-width').forEach(b => {
+                b.addEventListener('click', () => {
+                    const val = b.dataset.value;
+                    localStorage.setItem('editorWidth', val);
+                    applyTypography();
+                    updateTypoActiveState();
+                });
+            });
+
+            applyTypography();
+            updateTypoActiveState();
+        }
+
+        function applyTypography() {
+            const lineHeight = localStorage.getItem('editorLineHeight') || '1.6';
+            const paraSpacing = localStorage.getItem('editorParagraphSpacing') || '0.8em';
+            const fontSize = localStorage.getItem('editorFontSize') || '16px';
+            const letterSpacing = localStorage.getItem('editorLetterSpacing') || '0';
+            const editorWidth = localStorage.getItem('editorWidth') || '56rem';
+            const textareaEl = document.getElementById('noteEditor');
+            if (textareaEl) {
+                textareaEl.style.lineHeight = lineHeight;
+                textareaEl.style.fontSize = fontSize;
+            }
+            let styleEl = document.getElementById('typography-dynamic-style');
+            if (!styleEl) {
+                styleEl = document.createElement('style');
+                styleEl.id = 'typography-dynamic-style';
+                document.head.appendChild(styleEl);
+            }
+            styleEl.textContent = `.ProseMirror { line-height: ${lineHeight}; font-size: ${fontSize}; letter-spacing: ${letterSpacing}; } .ProseMirror p { margin: ${paraSpacing} 0; }`;
+            const editorContentWrappers = document.querySelectorAll(
+                '#noteEditorArea .p-6 > div.mx-auto, ' +
+                '#noteEditorArea #formatBarContainer > div.mx-auto, ' +
+                '#noteEditorArea #formatBarContainer #typographyPanel > div.mx-auto, ' +
+                '#noteEditorArea #formatBarContainer #findBar > div.mx-auto, ' +
+                '#noteDetailArea > div.sticky.bottom-0 > div.mx-auto'
+            );
+            editorContentWrappers.forEach(el => {
+                el.style.maxWidth = editorWidth;
+            });
+        }
+
+        function updateTypoActiveState() {
+            const lineHeight = localStorage.getItem('editorLineHeight') || '1.6';
+            const paraSpacing = localStorage.getItem('editorParagraphSpacing') || '0.8em';
+            const fontSize = localStorage.getItem('editorFontSize') || '16px';
+            const letterSpacing = localStorage.getItem('editorLetterSpacing') || '0';
+            const editorWidth = localStorage.getItem('editorWidth') || '56rem';
+            document.querySelectorAll('.typo-line-height').forEach(b => {
+                const isActive = b.dataset.value === lineHeight;
+                b.classList.toggle('bg-indigo-100', isActive);
+                b.classList.toggle('border-indigo-400', isActive);
+                b.classList.toggle('text-indigo-700', isActive);
+            });
+            document.querySelectorAll('.typo-para-spacing').forEach(b => {
+                const isActive = b.dataset.value === paraSpacing;
+                b.classList.toggle('bg-indigo-100', isActive);
+                b.classList.toggle('border-indigo-400', isActive);
+                b.classList.toggle('text-indigo-700', isActive);
+            });
+            document.querySelectorAll('.typo-font-size').forEach(b => {
+                const isActive = b.dataset.value === fontSize;
+                b.classList.toggle('bg-indigo-100', isActive);
+                b.classList.toggle('border-indigo-400', isActive);
+                b.classList.toggle('text-indigo-700', isActive);
+            });
+            document.querySelectorAll('.typo-letter-spacing').forEach(b => {
+                const isActive = b.dataset.value === letterSpacing;
+                b.classList.toggle('bg-indigo-100', isActive);
+                b.classList.toggle('border-indigo-400', isActive);
+                b.classList.toggle('text-indigo-700', isActive);
+            });
+            document.querySelectorAll('.typo-editor-width').forEach(b => {
+                const isActive = b.dataset.value === editorWidth;
+                b.classList.toggle('bg-indigo-100', isActive);
+                b.classList.toggle('border-indigo-400', isActive);
+                b.classList.toggle('text-indigo-700', isActive);
+            });
+        }
+
+        function triggerFindRedraw() {
+            if (!milkEditor || !milkdownModules.core) return;
+            const { editorViewCtx } = milkdownModules.core;
+            milkEditor.action((ctx) => {
+                const view = ctx.get(editorViewCtx);
+                if (!view) return;
+                view.dispatch(view.state.tr.setMeta('findUpdate', Date.now()));
+            });
+        }
+
+        function initFindBar() {
+            const findInput = document.getElementById('findInput');
+            const findPrevBtn = document.getElementById('findPrevBtn');
+            const findNextBtn = document.getElementById('findNextBtn');
+            const findCloseBtn = document.getElementById('findCloseBtn');
+            const findCount = document.getElementById('findCount');
+            const findBar = document.getElementById('findBar');
+            const replaceInput = document.getElementById('replaceInput');
+            const replaceBtn = document.getElementById('replaceBtn');
+            const replaceAllBtn = document.getElementById('replaceAllBtn');
+            const findMatchesPositions = [];
+
+            function clearFindHighlights() {
+                findQuery = '';
+                findActiveIndex = 0;
+                findMatchesPositions.length = 0;
+                findCount.textContent = '0/0';
+                if (useMilkdown && milkEditor) {
+                    triggerFindRedraw();
+                } else {
+                    const textarea = document.getElementById('noteEditor');
+                    if (textarea) {
+                        textarea.setSelectionRange(0, 0);
+                    }
+                }
+            }
+
+            function doFind(query) {
+                findQuery = query;
+                findActiveIndex = 0;
+                findMatchesPositions.length = 0;
+
+                if (!query) {
+                    findCount.textContent = '0/0';
+                    if (useMilkdown && milkEditor) triggerFindRedraw();
+                    return;
+                }
+
+                if (useMilkdown && milkEditor) {
+                    const { TextSelection } = milkdownModules.pmState;
+                    milkEditor.action((ctx) => {
+                        const view = ctx.get(milkdownModules.core.editorViewCtx);
+                        if (!view) { findCount.textContent = '0/0'; return; }
+                        const lowerQ = query.toLowerCase();
+                        view.state.doc.descendants((node, pos) => {
+                            if (node.isText) {
+                                const lowerText = node.text.toLowerCase();
+                                let idx = 0;
+                                while ((idx = lowerText.indexOf(lowerQ, idx)) !== -1) {
+                                    findMatchesPositions.push({ from: pos + idx, to: pos + idx + query.length });
+                                    idx += query.length;
+                                }
+                            }
+                        });
+                        const total = findMatchesPositions.length;
+                        if (total > 0) {
+                            findActiveIndex = 1;
+                            const { from, to } = findMatchesPositions[0];
+                            const resolvedFrom = view.state.doc.resolve(from);
+                            const resolvedTo = view.state.doc.resolve(to);
+                            const tr = view.state.tr.setSelection(new TextSelection(resolvedFrom, resolvedTo));
+                            tr.scrollIntoView();
+                            view.dispatch(tr);
+                            findCount.textContent = `1/${total}`;
+                        } else {
+                            findCount.textContent = '0/0';
+                        }
+                    });
+                } else {
+                    const textarea = document.getElementById('noteEditor');
+                    if (!textarea) { findCount.textContent = '0/0'; return; }
+                    const text = textarea.value;
+                    const lowerText = text.toLowerCase();
+                    const lowerQ = query.toLowerCase();
+                    let idx = 0;
+                    while ((idx = lowerText.indexOf(lowerQ, idx)) !== -1) {
+                        findMatchesPositions.push({ from: idx, to: idx + query.length });
+                        idx += query.length;
+                    }
+                    const total = findMatchesPositions.length;
+                    if (total > 0) {
+                        findActiveIndex = 1;
+                        textarea.focus();
+                        textarea.setSelectionRange(findMatchesPositions[0].from, findMatchesPositions[0].to);
+                        findCount.textContent = `1/${total}`;
+                    } else {
+                        findCount.textContent = '0/0';
+                    }
+                }
+            }
+
+            function scrollToActiveMatch() {
+                if (findMatchesPositions.length === 0) return;
+                if (findActiveIndex < 1 || findActiveIndex > findMatchesPositions.length) findActiveIndex = 1;
+                if (useMilkdown && milkEditor) {
+                    const { TextSelection } = milkdownModules.pmState;
+                    milkEditor.action((ctx) => {
+                        const view = ctx.get(milkdownModules.core.editorViewCtx);
+                        if (!view) return;
+                        const { from, to } = findMatchesPositions[findActiveIndex - 1];
+                        const resolvedFrom = view.state.doc.resolve(from);
+                        const resolvedTo = view.state.doc.resolve(to);
+                        const tr = view.state.tr.setSelection(new TextSelection(resolvedFrom, resolvedTo));
+                        tr.scrollIntoView();
+                        view.dispatch(tr);
+                        view.focus();
+                    });
+                } else {
+                    const textarea = document.getElementById('noteEditor');
+                    if (!textarea) return;
+                    textarea.focus();
+                    textarea.setSelectionRange(findMatchesPositions[findActiveIndex - 1].from, findMatchesPositions[findActiveIndex - 1].to);
+                }
+            }
+
+            function updateFindMatchActiveClass() {
+                const marks = document.querySelectorAll('.find-match');
+                if (marks.length > 0) {
+                    marks.forEach((m, i) => {
+                        m.classList.toggle('find-match-active', i === findActiveIndex - 1);
+                    });
+                }
+            }
+
+            function goToNext() {
+                if (findMatchesPositions.length === 0) return;
+                if (findActiveIndex < 1 || findActiveIndex > findMatchesPositions.length) findActiveIndex = 1;
+                findActiveIndex = (findActiveIndex % findMatchesPositions.length) + 1;
+                updateFindMatchActiveClass();
+                scrollToActiveMatch();
+                findCount.textContent = `${findActiveIndex}/${findMatchesPositions.length}`;
+            }
+
+            function goToPrev() {
+                if (findMatchesPositions.length === 0) return;
+                if (findActiveIndex < 1 || findActiveIndex > findMatchesPositions.length) findActiveIndex = 1;
+                findActiveIndex = findActiveIndex - 1;
+                if (findActiveIndex < 1) findActiveIndex = findMatchesPositions.length;
+                updateFindMatchActiveClass();
+                scrollToActiveMatch();
+                findCount.textContent = `${findActiveIndex}/${findMatchesPositions.length}`;
+            }
+
+            function replaceCurrent() {
+                if (findMatchesPositions.length === 0 || findActiveIndex < 1) return;
+                const replText = replaceInput.value;
+                if (useMilkdown && milkEditor) {
+                    milkEditor.action((ctx) => {
+                        const view = ctx.get(milkdownModules.core.editorViewCtx);
+                        if (!view) return;
+                        const { from, to } = findMatchesPositions[findActiveIndex - 1];
+                        view.dispatch(view.state.tr.insertText(replText, from, to));
+                    });
+                    setTimeout(() => doFind(findInput.value), 50);
+                } else {
+                    const textarea = document.getElementById('noteEditor');
+                    if (!textarea) return;
+                    const { from, to } = findMatchesPositions[findActiveIndex - 1];
+                    textarea.value = textarea.value.substring(0, from) + replText + textarea.value.substring(to);
+                    textarea.dispatchEvent(new Event('input'));
+                    setTimeout(() => doFind(findInput.value), 50);
+                }
+            }
+
+            function replaceAll() {
+                if (findMatchesPositions.length === 0) return;
+                const replText = replaceInput.value;
+                if (useMilkdown && milkEditor) {
+                    milkEditor.action((ctx) => {
+                        const view = ctx.get(milkdownModules.core.editorViewCtx);
+                        if (!view) return;
+                        let tr = view.state.tr;
+                        for (let i = findMatchesPositions.length - 1; i >= 0; i--) {
+                            const { from, to } = findMatchesPositions[i];
+                            tr = tr.insertText(replText, from, to);
+                        }
+                        view.dispatch(tr);
+                    });
+                    setTimeout(() => doFind(findInput.value), 50);
+                } else {
+                    const textarea = document.getElementById('noteEditor');
+                    if (!textarea) return;
+                    let text = textarea.value;
+                    for (let i = findMatchesPositions.length - 1; i >= 0; i--) {
+                        const { from, to } = findMatchesPositions[i];
+                        text = text.substring(0, from) + replText + text.substring(to);
+                    }
+                    textarea.value = text;
+                    textarea.dispatchEvent(new Event('input'));
+                    setTimeout(() => doFind(findInput.value), 50);
+                }
+            }
+
+            findInput.addEventListener('input', () => doFind(findInput.value));
+            findInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (e.shiftKey) goToPrev();
+                    else goToNext();
+                }
+                if (e.key === 'Escape') {
+                    findBar.classList.add('hidden');
+                    clearFindHighlights();
+                }
+            });
+            findNextBtn.addEventListener('click', goToNext);
+            findPrevBtn.addEventListener('click', goToPrev);
+            findCloseBtn.addEventListener('click', () => {
+                findBar.classList.add('hidden');
+                clearFindHighlights();
+            });
+            replaceBtn.addEventListener('click', replaceCurrent);
+            replaceAllBtn.addEventListener('click', replaceAll);
+            replaceInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    replaceCurrent();
+                }
+            });
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && !findBar.classList.contains('hidden')) {
+                    findBar.classList.add('hidden');
+                    clearFindHighlights();
+                }
+            });
+        }
+
+        function initWikiLinks() {
+            if (!milkEditor || !milkdownModules.core) return;
+            const editorEl = document.getElementById('milkdown-editor');
+            if (!editorEl) return;
+
+            editorEl.addEventListener('click', (e) => {
+                const target = e.target.closest('a');
+                if (target && target.href) return;
+
+                if (!milkEditor) return;
+                const view = milkEditor.action(ctx => ctx.get(milkdownModules.core.editorViewCtx));
+                if (!view) return;
+                const pos = view.posAtCoords({ left: e.clientX, top: e.clientY });
+                if (!pos) return;
+
+                const $pos = view.state.doc.resolve(pos.pos);
+                const parent = $pos.parent;
+                if (!parent || !parent.isTextblock) return;
+
+                const text = parent.textContent;
+                const wikiRegex = /\[\[([^\]]+)\]\]/g;
+                let match;
+                while ((match = wikiRegex.exec(text)) !== null) {
+                    const clickOffset = $pos.parentOffset;
+                    if (clickOffset >= match.index && clickOffset <= match.index + match[0].length) {
+                        const title = match[1];
+                        const noteExists = noteFiles.some(nf => nf.displayName === title);
+                        if (noteExists) {
+                            const nf = noteFiles.find(n => n.displayName === title);
+                            if (nf) openNote(nf.name);
+                        } else {
+                            window.location.href = `search.html?q=${encodeURIComponent(title)}`;
+                        }
+                        e.preventDefault();
+                        return;
+                    }
+                }
+            });
+        }
+
+        /* ── 备份 ── */
+        async function handleBackup() {
+            if (!folderHandle) { alert('请先选择笔记文件夹'); return; }
+            if (typeof JSZip === 'undefined') { alert('JSZip 库未加载，请刷新后重试'); return; }
+            const backupBtn = document.getElementById('backupBtn');
+            backupBtn.textContent = '正在打包...';
+            backupBtn.disabled = true;
+            try {
+                const zip = new JSZip();
+                const entries = [];
+                for await (const entry of folderHandle.values()) {
+                    if (entry.kind === 'file' && entry.name.endsWith('.md')) {
+                        entries.push(entry);
+                    }
+                }
+                for (const entry of entries) {
+                    const file = await entry.getFile();
+                    const content = await file.text();
+                    zip.file(entry.name, content);
+                }
+                const blob = await zip.generateAsync({ type: 'blob' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `又记笔记备份_${new Date().toISOString().slice(0,10)}.zip`;
+                a.click();
+                URL.revokeObjectURL(url);
+                localStorage.setItem('lastBackupDate', new Date().toISOString());
+                checkBackupReminder();
+            } catch (e) {
+                alert('备份失败：' + e.message);
+            } finally {
+                backupBtn.textContent = '备份';
+                backupBtn.disabled = false;
+            }
+        }
+
+        function checkBackupReminder() {
+            const reminder = document.getElementById('backupReminder');
+            if (!reminder) return;
+            if (localStorage.getItem('backupReminderDisabled') === 'true') {
+                reminder.classList.add('hidden');
+                return;
+            }
+            const lastBackup = localStorage.getItem('lastBackupDate');
+            if (!lastBackup) { reminder.classList.add('hidden'); return; }
+            const daysAgo = Math.floor((Date.now() - new Date(lastBackup).getTime()) / (1000 * 60 * 60 * 24));
+            if (daysAgo >= 14) {
+                reminder.textContent = `上次备份已超过 ${daysAgo} 天`;
+                reminder.classList.remove('hidden');
+            } else {
+                reminder.classList.add('hidden');
+            }
+        }
+
+        async function init() {
+            initPage('notes');
+
+            const loaded = await loadMilkdown();
+            if (loaded) {
+                const inited = await initMilkdownEditor();
+                if (inited) {
+                    useMilkdown = true;
+                    document.getElementById('milkdown-editor').classList.remove('hidden');
+                    document.getElementById('noteEditor').classList.add('hidden');
+                    setTimeout(initWikiLinks, 100);
+                } else {
+                    fallbackToTextarea();
+                }
+            } else {
+                fallbackToTextarea();
+            }
+
+            folderHandle = await getFolderHandle();
+            if (folderHandle) {
+                const hasPermission = await verifyFolderPermission(folderHandle);
+                if (hasPermission) {
+                    document.getElementById('noFolderHint').classList.add('hidden');
+                    document.getElementById('notesMainLayout').classList.remove('hidden');
+                    document.getElementById('newNoteBtn').classList.remove('hidden');
+                    await refreshNoteList();
+                } else {
+                    folderHandle = null;
+                    document.getElementById('noFolderHint').innerHTML = `
+                        <p class="text-gray-400 text-lg mb-2">文件夹权限已过期</p>
+                        <p class="text-gray-400 text-sm mb-4">请重新选择笔记文件夹</p>
+                        <button id="selectFolderBtn" class="px-4 py-2 bg-indigo-600 text-white rounded-md text-sm hover:bg-indigo-700">选择笔记文件夹</button>
+                    `;
+                }
+            }
+
+            document.getElementById('selectFolderBtn').addEventListener('click', selectFolder);
+            document.getElementById('newNoteBtn').addEventListener('click', createNewNote);
+            document.getElementById('closeNoteBtn').addEventListener('click', closeNoteDetail);
+            document.getElementById('deleteNoteBtn').addEventListener('click', deleteCurrentNote);
+            document.getElementById('exportNoteBtn').addEventListener('click', exportCurrentNote);
+            document.getElementById('exportPdfBtn').addEventListener('click', () => window.print());
+            document.getElementById('pinNoteBtn').addEventListener('click', togglePinCurrentNote);
+            document.getElementById('batchToggleBtn').addEventListener('click', () => {
+                if (batchMode) exitBatchMode(); else enterBatchMode();
+            });
+            document.getElementById('batchDeleteBtn')?.addEventListener('click', batchDeleteNotes);
+            document.getElementById('batchCancelBtn')?.addEventListener('click', exitBatchMode);
+            document.getElementById('trashBtn')?.addEventListener('click', openTrashPanel);
+            document.getElementById('closeTrashBtn')?.addEventListener('click', closeTrashPanel);
+            document.getElementById('clearTrashBtn')?.addEventListener('click', handleClearTrash);
+            document.getElementById('sortSelect').value = currentSortBy;
+            document.getElementById('sortSelect').addEventListener('change', (e) => {
+                currentSortBy = e.target.value;
+                localStorage.setItem('noteSortBy', currentSortBy);
+                renderNoteList();
+            });
+            document.getElementById('sortOrderBtn').addEventListener('click', () => {
+                sortAscending = !sortAscending;
+                localStorage.setItem('noteSortOrder', sortAscending ? 'asc' : 'desc');
+                updateSortOrderIcon();
+                renderNoteList();
+            });
+            updateSortOrderIcon();
+            document.getElementById('searchBox').addEventListener('input', (e) => {
+                const rawValue = e.target.value.trim();
+                searchKeyword = rawValue.toLowerCase();
+                const tagMatch = rawValue.match(/^#(\S+)$/);
+                if (tagMatch) {
+                    currentTagFilter = tagMatch[1];
+                    searchKeyword = '';
+                    document.getElementById('tagCloudSection').classList.remove('hidden');
+                    tagVisible = true;
+                    renderTagCloud();
+                    renderNoteList();
+                    return;
+                }
+                if (!rawValue.startsWith('#')) {
+                    currentTagFilter = null;
+                    renderTagCloud();
+                }
+                renderNoteList();
+            });
+            document.getElementById('tagToggleBtn').addEventListener('click', () => {
+                tagVisible = !tagVisible;
+                const section = document.getElementById('tagCloudSection');
+                if (tagVisible) {
+                    section.classList.remove('hidden');
+                    renderTagCloud();
+                } else {
+                    section.classList.add('hidden');
+                }
+            });
+            document.getElementById('backupBtn').addEventListener('click', handleBackup);
+            document.getElementById('hideArchivedToggle').addEventListener('change', (e) => {
+                localStorage.setItem('hideArchivedNotes', e.target.checked);
+                renderNoteList();
+            });
+            {
+                const saved = localStorage.getItem('hideArchivedNotes');
+                const checked = saved !== null ? saved === 'true' : true;
+                document.getElementById('hideArchivedToggle').checked = checked;
+            }
+            checkBackupReminder();
+            if (!useMilkdown) {
+                document.getElementById('noteEditor').addEventListener('input', () => {
+                    document.getElementById('saveStatus').textContent = '未保存';
+                    clearTimeout(saveTimeout);
+                    saveTimeout = setTimeout(saveCurrentNote, 800);
+                });
+                document.getElementById('noteEditor').addEventListener('click', () => {
+                    saveCursorPosition(_currentFileNameForCursor, document.getElementById('noteEditor').selectionStart);
+                });
+                document.getElementById('noteEditor').addEventListener('keyup', () => {
+                    saveCursorPosition(_currentFileNameForCursor, document.getElementById('noteEditor').selectionStart);
+                });
+            }
+            document.getElementById('noteTitleInput').addEventListener('change', () => {
+                clearTimeout(saveTimeout);
+                saveTimeout = setTimeout(saveCurrentNote, 300);
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                    e.preventDefault();
+                    saveCurrentNote();
+                }
+                if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+                    e.preventDefault();
+                    createNewNote();
+                }
+                if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const searchBox = document.getElementById('searchBox');
+                    const editorArea = document.getElementById('noteEditorArea');
+                    if (editorArea.classList.contains('hidden')) {
+                        setTimeout(() => {
+                            searchBox.focus();
+                            searchBox.select();
+                        }, 0);
+                    } else {
+                        const findBar = document.getElementById('findBar');
+                        if (findBar.classList.contains('hidden')) {
+                            document.getElementById('findInput').value = '';
+                            findQuery = '';
+                            document.getElementById('findCount').textContent = '0/0';
+                            triggerFindRedraw();
+                            findBar.classList.remove('hidden');
+                            setTimeout(() => {
+                                document.getElementById('findInput').focus();
+                            }, 0);
+                        } else {
+                            setTimeout(() => {
+                                document.getElementById('findInput').focus();
+                                document.getElementById('findInput').select();
+                            }, 0);
+                        }
+                    }
+                }
+                if (e.key === 'Escape') {
+                    const findBar = document.getElementById('findBar');
+                    if (!findBar || findBar.classList.contains('hidden')) {
+                        hideFormatBar();
+                    }
+                }
+            });
+
+            window.addEventListener('resize', updateMobileState);
+            initFloatingToolbar();
+            initTagPillInput();
+            initSidebarResizer();
+            initTypography();
+
+            initTaskCheckbox();
+            initFindBar();
+
+            function applyHighlight(color) {
+                if (!useMilkdown || !milkEditor || !milkdownModules.core) return;
+                const { editorViewCtx } = milkdownModules.core;
+                milkEditor.action((ctx) => {
+                    const view = ctx.get(editorViewCtx);
+                    if (!view) return;
+                    const { from, to, empty } = view.state.selection;
+                    if (empty) return;
+                    const selectedText = view.state.doc.textBetween(from, to);
+                    const prefix = color === 'yellow' ? '' : { blue: '#', green: '$', pink: '%', purple: '@' }[color] || '';
+                    const wrapped = `==${prefix}${selectedText}==`;
+                    const tr = view.state.tr.insertText(wrapped, from, to);
+                    view.dispatch(tr);
+                });
+            }
+
+            const highlightBtn = document.getElementById('highlightBtn');
+            const highlightPanel = document.getElementById('highlightColorPanel');
+            if (highlightBtn && highlightPanel) {
+                highlightBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const isHidden = highlightPanel.classList.contains('hidden');
+                    highlightPanel.classList.toggle('hidden', !isHidden);
+                });
+                highlightPanel.querySelectorAll('.h-color-option').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const color = btn.dataset.color;
+                        applyHighlight(color);
+                        highlightPanel.classList.add('hidden');
+                    });
+                });
+                document.addEventListener('click', (e) => {
+                    if (!highlightBtn.contains(e.target) && !highlightPanel.contains(e.target)) {
+                        highlightPanel.classList.add('hidden');
+                    }
+                });
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') highlightPanel.classList.add('hidden');
+                });
+            }
+
+            const imageBtn = document.getElementById('insertImageBtn');
+            const imageInput = document.getElementById('imageFileInput');
+            const imageOptionPanel = document.getElementById('imageOptionPanel');
+            if (imageBtn && imageInput && imageOptionPanel) {
+                imageBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    imageOptionPanel.classList.add('hidden');
+                    imageInput.value = '';
+                    imageInput.click();
+                });
+                imageInput.addEventListener('change', async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const rect = imageBtn.getBoundingClientRect();
+                    imageOptionPanel.style.position = 'fixed';
+                    imageOptionPanel.style.top = (rect.bottom + 4) + 'px';
+                    imageOptionPanel.style.left = rect.left + 'px';
+                    imageOptionPanel.classList.remove('hidden');
+                    window._pendingImageFile = file;
+                });
+                imageOptionPanel.querySelectorAll('.img-option').forEach(btn => {
+                    btn.addEventListener('click', async (e) => {
+                        e.stopPropagation();
+                        const mode = btn.dataset.mode;
+                        const file = window._pendingImageFile;
+                        if (!file) return;
+                        imageOptionPanel.classList.add('hidden');
+                        if (!useMilkdown || !milkEditor || !milkdownModules.core || !folderHandle) {
+                            alert('请先打开笔记并确保笔记文件夹已连接');
+                            return;
+                        }
+                        try {
+                            const { editorViewCtx } = milkdownModules.core;
+                            let imagesDir;
+                            try {
+                                imagesDir = await folderHandle.getDirectoryHandle('images', { create: true });
+                            } catch (e) {
+                                alert('无法创建 images 文件夹：' + e.message);
+                                return;
+                            }
+                            const timestamp = Date.now();
+                            const ext = file.name.split('.').pop();
+                            let fileName, fileData;
+                            if (mode === 'compress') {
+                                fileName = `img_${timestamp}.webp`;
+                                const img = await createImageBitmap(file);
+                                let w = img.width;
+                                let h = img.height;
+                                if (w > 1200) {
+                                    h = Math.round(h * 1200 / w);
+                                    w = 1200;
+                                }
+                                const canvas = document.createElement('canvas');
+                                canvas.width = w;
+                                canvas.height = h;
+                                const ctx = canvas.getContext('2d');
+                                ctx.drawImage(img, 0, 0, w, h);
+                                const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', 0.85));
+                                if (!blob) { alert('压缩失败'); return; }
+                                fileData = blob;
+                            } else {
+                                fileName = `img_${timestamp}.${ext}`;
+                                fileData = file;
+                            }
+                            const fileHandle = await imagesDir.getFileHandle(fileName, { create: true });
+                            const writable = await fileHandle.createWritable();
+                            await writable.write(fileData);
+                            await writable.close();
+                            const markdownImage = `![${file.name}](images/${fileName})`;
+                            milkEditor.action((ctx) => {
+                                const view = ctx.get(editorViewCtx);
+                                if (!view) return;
+                                const { from } = view.state.selection;
+                                const tr = view.state.tr.insertText(markdownImage, from);
+                                view.dispatch(tr);
+                            });
+                        } catch (e) {
+                            alert('插入图片失败：' + e.message);
+                        }
+                        window._pendingImageFile = null;
+                    });
+                });
+                document.addEventListener('click', (e) => {
+                    if (!imageBtn.contains(e.target) && !imageOptionPanel.contains(e.target)) {
+                        imageOptionPanel.classList.add('hidden');
+                    }
+                });
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') imageOptionPanel.classList.add('hidden');
+                });
+            }
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const searchQuery = urlParams.get('q');
+            const dateParam = urlParams.get('date');
+            const openParam = urlParams.get('open');
+            const action = urlParams.get('action');
+            if (action === 'new' && folderHandle) {
+                const sourceParam = urlParams.get('source') || '';
+                const parts = sourceParam.split('::');
+                const sourceTitle = parts[0] || '';
+                const sourceType = parts[1] || '';
+                const tagParam = urlParams.get('tags') || '';
+                await createNoteFromSource(sourceTitle, sourceType, tagParam);
+            }
+            if (dateParam) {
+                dateFilter = dateParam;
+            }
+            if (searchQuery) {
+                document.getElementById('searchBox').value = searchQuery;
+                searchKeyword = searchQuery.trim().toLowerCase();
+                renderNoteList();
+                const matched = noteFiles.find(nf =>
+                    nf.displayName.toLowerCase().includes(searchKeyword) ||
+                    nf.title.toLowerCase().includes(searchKeyword)
+                );
+                if (matched) openNote(matched.name);
+                setTimeout(() => {
+                    if (!useMilkdown || !milkEditor || !milkdownModules.core) return;
+                    const findBar = document.getElementById('findBar');
+                    const findInput = document.getElementById('findInput');
+                    if (findBar && findInput && searchQuery) {
+                        findBar.classList.remove('hidden');
+                        findInput.value = searchQuery;
+                        doFind(searchQuery);
+                    }
+                }, 800);
+            }
+            if (dateFilter) {
+                renderNoteList();
+                const matched = noteFiles.find(nf => {
+                    const d = new Date(nf.lastModified);
+                    const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                    return ds === dateFilter;
+                });
+                if (matched) openNote(matched.name);
+            }
+            if (openParam) {
+                const matched = noteFiles.find(nf => nf.name === openParam);
+                if (matched) openNote(matched.name);
+            }
+            registerNoteContextMenus();
+        }
+
+        function initFloatingToolbar() {
+            document.querySelectorAll('#formatBar .fmt-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    applyFormat(btn.dataset.action);
+                });
+            });
+        }
+
+        function showFormatBar() {
+            document.getElementById('formatBarContainer').classList.remove('hidden');
+        }
+
+        function hideFormatBar() {
+            document.getElementById('formatBarContainer').classList.add('hidden');
+        }
+
+        function applyFormat(action) {
+            if (!useMilkdown || !milkEditor || !milkdownModules.core) return;
+            const { commandsCtx } = milkdownModules.core;
+            const { wrapInHeadingCommand, turnIntoTextCommand, toggleStrongCommand, toggleEmphasisCommand, toggleInlineCodeCommand, wrapInBlockquoteCommand, insertHrCommand } = milkdownModules.preset;
+            const { undoCommand, redoCommand } = milkdownModules.history;
+            milkEditor.action((ctx) => {
+                const commands = ctx.get(commandsCtx);
+                switch (action) {
+                    case 'undo':
+                        commands.call(undoCommand.key);
+                        break;
+                    case 'redo':
+                        commands.call(redoCommand.key);
+                        break;
+                    case 'bold':
+                        commands.call(toggleStrongCommand.key);
+                        break;
+                    case 'italic':
+                        commands.call(toggleEmphasisCommand.key);
+                        break;
+                    case 'code':
+                        commands.call(toggleInlineCodeCommand.key);
+                        break;
+                    case 'quote':
+                        commands.call(wrapInBlockquoteCommand.key);
+                        break;
+                    case 'h1':
+                        commands.call(wrapInHeadingCommand.key, 1);
+                        break;
+                    case 'h2':
+                        commands.call(wrapInHeadingCommand.key, 2);
+                        break;
+                    case 'h3':
+                        commands.call(wrapInHeadingCommand.key, 3);
+                        break;
+                    case 'hr':
+                        commands.call(insertHrCommand.key);
+                        break;
+                    case 'task':
+                        if (milkEditor && milkdownModules.core) {
+                            const { editorViewCtx } = milkdownModules.core;
+                            milkEditor.action((ctx) => {
+                                const view = ctx.get(editorViewCtx);
+                                if (!view) return;
+                                const { from } = view.state.selection;
+                                const tr = view.state.tr.insertText('- [ ] ', from);
+                                view.dispatch(tr);
+                            });
+                        }
+                        break;
+                }
+            });
+        }
+
+        function updateWordCount() {
+            const info = document.getElementById('toolbarInfo');
+            if (!info) return;
+            let text = '';
+            if (useMilkdown) {
+                const editorEl = document.getElementById('milkdown-editor');
+                text = editorEl ? editorEl.textContent || '' : '';
+            } else {
+                text = document.getElementById('noteEditor').value;
+            }
+            const charCount = text.replace(/\s/g, '').length;
+            info.textContent = `${charCount} 字`;
+        }
+
+        function updateFormatState() {
+            if (!useMilkdown || !milkEditor || !milkdownModules.core) return;
+            try {
+                milkEditor.action((ctx) => {
+                    const editorView = ctx.get(milkdownModules.core.editorViewCtx);
+                    if (!editorView) return;
+                    const state = editorView.state;
+                    const { from } = state.selection;
+                    const $pos = state.doc.resolve(from);
+                    const marks = $pos.marks();
+                    const activeFormats = new Set();
+                    marks.forEach(mark => {
+                        if (mark.type.name === 'strong') activeFormats.add('bold');
+                        if (mark.type.name === 'em') activeFormats.add('italic');
+                        if (mark.type.name === 'code_inline') activeFormats.add('code');
+                    });
+                    for (let d = $pos.depth; d > 0; d--) {
+                        const node = $pos.node(d);
+                        if (node.type.name === 'heading') {
+                            activeFormats.add('h' + node.attrs.level);
+                        }
+                        if (node.type.name === 'blockquote') {
+                            activeFormats.add('quote');
+                        }
+                    }
+                    document.querySelectorAll('#formatBar .fmt-btn').forEach(btn => {
+                        const action = btn.dataset.action;
+                        if (action && action !== 'undo' && action !== 'redo') {
+                            btn.classList.toggle('active', activeFormats.has(action));
+                        }
+                    });
+                });
+            } catch (e) {}
+        }
+
+        async function selectFolder() {
+            try {
+                const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
+                const hasPermission = await verifyFolderPermission(handle);
+                if (!hasPermission) {
+                    alert('无法获取文件夹读写权限');
+                    return;
+                }
+                await saveFolderHandle(handle);
+                folderHandle = handle;
+                document.getElementById('noFolderHint').classList.add('hidden');
+                document.getElementById('notesMainLayout').classList.remove('hidden');
+                document.getElementById('newNoteBtn').classList.remove('hidden');
+                await refreshNoteList();
+            } catch (e) {
+                if (e.name !== 'AbortError') {
+                    alert('选择文件夹失败：' + e.message);
+                }
+            }
+        }
+
+        async function scanNotesFolder() {
+            if (!folderHandle) return [];
+            const files = [];
+            try {
+                for await (const entry of folderHandle.values()) {
+                    if (entry.kind === 'file' && entry.name.endsWith('.md')) {
+                        try {
+                            const file = await entry.getFile();
+                            const isPinned = entry.name.startsWith('!');
+                            files.push({
+                                name: entry.name,
+                                handle: entry,
+                                file: file,
+                                pinned: isPinned,
+                                displayName: isPinned ? entry.name.slice(1, -3) : entry.name.slice(0, -3),
+                                lastModified: file.lastModified,
+                                size: file.size,
+                            });
+                        } catch (e) {
+                            console.warn(`读取文件 ${entry.name} 失败`, e);
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('扫描文件夹失败', e);
+            }
+            return files;
+        }
+
+        async function refreshNoteList() {
+            noteFiles = await scanNotesFolder();
+            for (const nf of noteFiles) {
+                const content = await nf.file.text();
+                nf.content = content;
+                nf.tags = parseTags(content);
+                nf.source = parseSource(content);
+                nf.title = nf.displayName;
+                const bodyText = stripMetaLines(content);
+                nf.preview = bodyText.substring(0, 100);
+                nf.bodyText = bodyText;
+            }
+            renderTagCloud();
+            renderNoteList();
+        }
+
+        function parseTags(content) {
+            const firstLine = content.split('\n')[0] || '';
+            if (firstLine.startsWith('tags:')) {
+                return firstLine.slice(5).split(/[,，]/).map(t => t.trim()).filter(t => t);
+            }
+            return [];
+        }
+
+        function parseSource(content) {
+            const lines = content.split('\n');
+            for (const line of lines) {
+                if (line.startsWith('source:')) {
+                    return line.slice(7).trim();
+                }
+                if (!line.startsWith('tags:') && line.trim() !== '') {
+                    break;
+                }
+            }
+            return '';
+        }
+
+        function stripMetaLines(content) {
+            const lines = content.split('\n');
+            let start = 0;
+            while (start < lines.length) {
+                const line = lines[start].trim();
+                if (line.startsWith('tags:') || line.startsWith('source:') || line === '') {
+                    start++;
+                } else {
+                    break;
+                }
+            }
+            return lines.slice(start).join('\n');
+        }
+
+        function updateSortOrderIcon() {
+            const btn = document.getElementById('sortOrderBtn');
+            if (!btn) return;
+            btn.innerHTML = sortAscending
+                ? '<svg class="w-3.5 h-3.5" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 3v8"/><path d="M4 6l3-3 3 3"/></svg>'
+                : '<svg class="w-3.5 h-3.5" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 11V3"/><path d="M4 8l3 3 3-3"/></svg>';
+        }
+
+        function recordNoteOpen(fileName) {
+            const key = `note_open_${fileName}`;
+            localStorage.setItem(key, Date.now());
+        }
+
+        function getNoteOpenTime(fileName) {
+            const val = localStorage.getItem(`note_open_${fileName}`);
+            return val ? parseInt(val) : 0;
+        }
+
+        function recordNoteModify(fileName) {
+            const key = `note_modify_${fileName}`;
+            const current = parseInt(localStorage.getItem(key)) || 0;
+            localStorage.setItem(key, current + 1);
+        }
+
+        function getNoteModifyCount(fileName) {
+            return parseInt(localStorage.getItem(`note_modify_${fileName}`)) || 0;
+        }
+
+        function getNoteCreatedTime(fileName) {
+            const val = localStorage.getItem(`note_created_${fileName}`);
+            return val ? parseInt(val) : 0;
+        }
+
+        function ensureNoteCreatedTime(fileName) {
+            const key = `note_created_${fileName}`;
+            if (!localStorage.getItem(key)) {
+                localStorage.setItem(key, Date.now());
+            }
+        }
+
+        function renderTagCloud() {
+            const tagCount = {};
+            noteFiles.forEach(nf => {
+                nf.tags.forEach(tag => { tagCount[tag] = (tagCount[tag] || 0) + 1; });
+            });
+            const tags = Object.entries(tagCount).sort((a, b) => b[1] - a[1]);
+            const container = document.getElementById('noteTagCloud');
+            const section = document.getElementById('tagCloudSection');
+            if (tags.length === 0) {
+                section.classList.add('hidden');
+                tagVisible = false;
+                return;
+            }
+            if (!tagVisible) return;
+            section.classList.remove('hidden');
+            const maxDisplay = 10;
+            const showTags = tags.slice(0, maxDisplay);
+            const hasMore = tags.length > maxDisplay;
+            const allBtn = `<button class="tag-btn px-2 py-0.5 rounded-full text-xs transition ${currentTagFilter === null ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-700'}" data-tag="">全部</button>`;
+            const tagBtns = showTags.map(([tag, count]) =>
+                `<button class="tag-btn px-2 py-0.5 rounded-full text-xs transition ${currentTagFilter === tag ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-700'}" data-tag="${escapeAttr(tag)}">${escapeHtml(tag)} (${count})</button>`
+            ).join('');
+            const moreHint = hasMore ? `<span class="text-xs text-gray-400 ml-1">+${tags.length - maxDisplay} 个</span>` : '';
+            container.innerHTML = allBtn + tagBtns + moreHint;
+            container.querySelectorAll('.tag-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    currentTagFilter = btn.dataset.tag || null;
+                    renderTagCloud();
+                    renderNoteList();
+                });
+                btn.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const tag = btn.dataset.tag;
+                    if (!tag) return;
+                    window.createContextMenu([
+                        { label: '删除标签', danger: true, action: () => deleteTagFromNotes(tag) },
+                        { label: '合并标签', action: () => mergeTagInNotes(tag) },
+                    ], e);
+                });
+            });
+        }
+
+        async function deleteTagFromNotes(tag) {
+            if (!confirm(`确定从所有笔记中删除标签「${tag}」吗？`)) return;
+            for (const nf of noteFiles) {
+                if (!nf.tags.includes(tag)) continue;
+                try {
+                    const handle = nf.handle;
+                    const file = await handle.getFile();
+                    const content = await file.text();
+                    const lines = content.split('\n');
+                    let newLines = [];
+                    let foundTags = false;
+                    for (const line of lines) {
+                        if (line.startsWith('tags:')) {
+                            foundTags = true;
+                            const currentTags = line.slice(5).split(/[,，]/).map(t => t.trim()).filter(t => t && t !== tag);
+                            if (currentTags.length > 0) {
+                                newLines.push('tags: ' + currentTags.join(', '));
+                            }
+                        } else {
+                            newLines.push(line);
+                        }
+                    }
+                    if (!foundTags) continue;
+                    const newContent = newLines.join('\n');
+                    const writable = await handle.createWritable();
+                    await writable.write(newContent);
+                    await writable.close();
+                } catch (e) {
+                    console.warn(`从 ${nf.name} 删除标签失败`, e);
+                }
+            }
+            await refreshNoteList();
+        }
+
+        async function mergeTagInNotes(oldTag) {
+            const allTags = new Set();
+            noteFiles.forEach(nf => nf.tags.forEach(t => { if (t !== oldTag) allTags.add(t); }));
+            const sortedTags = Array.from(allTags).sort();
+            const input = prompt(`将标签「${oldTag}」合并到：\n可用标签：${sortedTags.join(', ')}`);
+            if (!input || !input.trim()) return;
+            const newTag = input.trim();
+            if (newTag === oldTag) return;
+            for (const nf of noteFiles) {
+                if (!nf.tags.includes(oldTag)) continue;
+                try {
+                    const handle = nf.handle;
+                    const file = await handle.getFile();
+                    const content = await file.text();
+                    const lines = content.split('\n');
+                    let newLines = [];
+                    for (const line of lines) {
+                        if (line.startsWith('tags:')) {
+                            const currentTags = line.slice(5).split(/[,，]/).map(t => t.trim()).filter(t => t);
+                            const updated = currentTags.filter(t => t !== oldTag);
+                            if (!updated.includes(newTag)) updated.push(newTag);
+                            newLines.push('tags: ' + updated.join(', '));
+                        } else {
+                            newLines.push(line);
+                        }
+                    }
+                    const newContent = newLines.join('\n');
+                    const writable = await handle.createWritable();
+                    await writable.write(newContent);
+                    await writable.close();
+                } catch (e) {
+                    console.warn(`合并标签失败`, e);
+                }
+            }
+            await refreshNoteList();
+        }
+
+        function renderNoteListItem(nf) {
+            const tagsHtml = nf.tags.slice(0, 3).map(t => `<span class="tag-pill" style="cursor:pointer" data-tag="${escapeAttr(t)}">${escapeHtml(t)}</span>`).join('');
+            const isActive = currentNoteFile && currentNoteFile.name === nf.name;
+            const preview = nf.preview ? escapeHtml(nf.preview.substring(0, 60)) : '';
+            const dateStr = new Date(nf.lastModified).toLocaleDateString('zh-CN');
+            const checkbox = batchMode ? `<input type="checkbox" class="batch-checkbox w-4 h-4 mr-2 flex-shrink-0" data-name="${escapeAttr(nf.name)}">` : '';
+            return `
+                <div class="note-list-item ${isActive ? 'active' : ''} ${nf.pinned ? 'pinned' : ''}" data-name="${escapeAttr(nf.name)}">
+                    <div class="flex items-center justify-between mb-0.5">
+                        <div class="flex items-center flex-1 min-w-0">
+                            ${checkbox}
+                            <h3 class="font-bold text-gray-700 text-sm truncate flex-1 mr-2">${escapeHtml(nf.title)}</h3>
+                        </div>
+                        <span class="text-xs text-gray-400 flex-shrink-0">${dateStr}</span>
+                    </div>
+                    ${preview ? `<p class="text-xs text-gray-500 mb-1 truncate ${batchMode ? 'ml-6' : ''}">${preview}</p>` : ''}
+                    ${tagsHtml ? `<div class="flex flex-wrap gap-0.5 ${batchMode ? 'ml-6' : ''}">${tagsHtml}</div>` : ''}
+                    ${!batchMode ? `<button class="item-delete" data-name="${escapeAttr(nf.name)}" title="删除笔记">${iconTrash('w-4 h-4')}</button>` : ''}
+                </div>
+            `;
+        }
+
+        function renderNoteList() {
+            let filtered = [...noteFiles];
+
+            const hideArchived = document.getElementById('hideArchivedToggle')?.checked;
+            if (hideArchived) {
+                filtered = filtered.filter(nf => !nf.tags.includes('归档'));
+            }
+
+            if (dateFilter) {
+                filtered = filtered.filter(nf => {
+                    const d = new Date(nf.lastModified);
+                    const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                    return ds === dateFilter;
+                });
+            }
+            if (currentTagFilter) {
+                filtered = filtered.filter(nf => nf.tags.includes(currentTagFilter));
+            }
+            if (searchKeyword) {
+                filtered = filtered.filter(nf =>
+                    nf.title.toLowerCase().includes(searchKeyword) ||
+                    nf.content.toLowerCase().includes(searchKeyword)
+                );
+            }
+
+            filtered.sort((a, b) => {
+                if (a.pinned !== b.pinned) return b.pinned ? 1 : -1;
+
+                let compareResult = 0;
+                switch (currentSortBy) {
+                    case 'modified':
+                        compareResult = b.lastModified - a.lastModified;
+                        break;
+                    case 'created': {
+                        const aCreated = getNoteCreatedTime(a.name);
+                        const bCreated = getNoteCreatedTime(b.name);
+                        compareResult = bCreated - aCreated;
+                        break;
+                    }
+                    case 'opened': {
+                        const aOpened = getNoteOpenTime(a.name);
+                        const bOpened = getNoteOpenTime(b.name);
+                        compareResult = bOpened - aOpened;
+                        break;
+                    }
+                    case 'frequency': {
+                        const aFreq = getNoteModifyCount(a.name);
+                        const bFreq = getNoteModifyCount(b.name);
+                        compareResult = bFreq - aFreq;
+                        break;
+                    }
+                    case 'title':
+                    default:
+                        compareResult = a.title.localeCompare(b.title, 'zh');
+                        break;
+                }
+                return sortAscending ? -compareResult : compareResult;
+            });
+
+            const container = document.getElementById('noteList');
+            const countEl = document.getElementById('noteCount');
+            if (countEl) {
+                if (searchKeyword && filtered.length > 0) {
+                    countEl.textContent = `(找到 ${filtered.length} 篇笔记)`;
+                } else {
+                    countEl.textContent = `(${filtered.length})`;
+                }
+            }
+            if (filtered.length === 0) {
+                if (searchKeyword) {
+                    container.innerHTML = `<div class="text-center text-gray-400 py-10 text-sm"><p class="mb-1">没有找到匹配的笔记</p><p class="text-xs">试试其他关键词</p></div>`;
+                } else {
+                    container.innerHTML = `<div class="text-center text-gray-400 py-10 text-sm"><p class="mb-3">暂无笔记</p><button id="openFolderBtn" class="text-xs text-indigo-500 hover:text-indigo-700 underline">打开笔记文件夹</button></div>`;
+                }
+                document.getElementById('openFolderBtn')?.addEventListener('click', () => {
+                    if (folderHandle) window.open(folderHandle.name, '_blank');
+                });
+                return;
+            }
+
+            container.innerHTML = filtered.map(nf => renderNoteListItem(nf)).join('');
+
+            container.querySelectorAll('.note-list-item').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    if (e.target.closest('.item-delete')) return;
+                    if (batchMode) {
+                        const cb = item.querySelector('.batch-checkbox');
+                        if (cb && e.target !== cb) cb.checked = !cb.checked;
+                        updateBatchCount();
+                        return;
+                    }
+                    openNote(item.dataset.name);
+                });
+                item.addEventListener('mousedown', (e) => {
+                    if (e.button === 1 && item.dataset.name) {
+                        e.preventDefault();
+                        window.open('notes.html?open=' + encodeURIComponent(item.dataset.name), '_blank');
+                    }
+                });
+            });
+
+            container.querySelectorAll('.item-delete').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    deleteNoteByName(btn.dataset.name);
+                });
+            });
+
+            container.querySelectorAll('.tag-pill').forEach(pill => {
+                pill.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const tag = pill.dataset.tag;
+                    if (tag) {
+                        currentTagFilter = tag;
+                        document.getElementById('tagCloudSection').classList.remove('hidden');
+                        tagVisible = true;
+                        renderTagCloud();
+                        renderNoteList();
+                    }
+                });
+            });
+
+            container.querySelectorAll('.batch-checkbox').forEach(cb => {
+                cb.addEventListener('change', () => {
+                    updateBatchCount();
+                    syncSelectAllState();
+                });
+            });
+
+            const selectAllCb = document.getElementById('batchSelectAll');
+            if (selectAllCb) {
+                selectAllCb.checked = false;
+                selectAllCb.onchange = () => {
+                    const checked = selectAllCb.checked;
+                    container.querySelectorAll('.batch-checkbox').forEach(cb => {
+                        cb.checked = checked;
+                    });
+                    updateBatchCount();
+                };
+            }
+        }
+
+        /* ── 注册右键菜单（注册表模式，由 common.js 统一分发） ── */
+        function registerNoteContextMenus() {
+            window.registerContextMenu('.note-list-item[data-name]', (target) => {
+                const name = target.dataset.name;
+                const nf = noteFiles.find(n => n.name === name);
+                if (!nf) return [];
+                const isPinned = nf.pinned;
+                const isArchived = nf.tags && nf.tags.includes('归档');
+                return [
+                    { label: isPinned ? '取消置顶' : '置顶', action: () => togglePinByName(name, !isPinned) },
+                    { label: '重命名', action: () => renameNoteByName(name) },
+                    { label: isArchived ? '取消归档' : '归档', action: () => toggleArchiveByName(name, isArchived) },
+                    { separator: true },
+                    { label: '导出', action: () => exportNoteByName(name) },
+                    { label: '删除', danger: true, action: () => deleteNoteByName(name) },
+                ];
+            });
+            window.registerContextMenu('.note-list-item[data-id]', (target) => {
+                const id = target.dataset.id;
+                return [
+                    { label: '恢复', action: () => restoreFromTrash(id) },
+                    { label: '永久删除', danger: true, action: () => permanentDelete(id) },
+                ];
+            });
+            window.registerContextMenu('#noteTagCloud .tag-btn[data-tag]', (target) => {
+                const tag = target.dataset.tag;
+                if (!tag) return [];
+                return [
+                    { label: '删除标签', danger: true, action: () => deleteTagFromNotes(tag) },
+                    { label: '合并标签', action: () => mergeTagInNotes(tag) },
+                ];
+            });
+        }
+
+        async function deleteNoteByName(fileName) {
+            const nf = noteFiles.find(n => n.name === fileName);
+            if (!nf) return;
+            if (!confirm(`确定删除「${nf.displayName}」吗？将移入回收站`)) return;
+            try {
+                await addToTrash({
+                    id: nf.name,
+                    name: nf.name,
+                    displayName: nf.displayName,
+                    content: nf.content || '',
+                    tags: nf.tags || [],
+                    pinned: nf.pinned,
+                    lastModified: nf.lastModified,
+                });
+                await folderHandle.removeEntry(nf.name);
+                if (currentNoteFile && currentNoteFile.name === fileName) {
+                    currentNoteFile = null;
+                    closeNoteDetail();
+                }
+                await refreshNoteList();
+            } catch (e) {
+                alert('删除失败：' + e.message);
+            }
+        }
+
+        function updateBatchCount() {
+            const checked = document.querySelectorAll('.batch-checkbox:checked').length;
+            const countEl = document.getElementById('batchCount');
+            if (countEl) countEl.textContent = checked > 0 ? `已选 ${checked} 篇` : '';
+        }
+
+        function syncSelectAllState() {
+            const selectAllCb = document.getElementById('batchSelectAll');
+            if (!selectAllCb) return;
+            const allCbs = document.querySelectorAll('.batch-checkbox');
+            const checkedCbs = document.querySelectorAll('.batch-checkbox:checked');
+            selectAllCb.checked = allCbs.length > 0 && allCbs.length === checkedCbs.length;
+        }
+
+        function enterBatchMode() {
+            batchMode = true;
+            const btn = document.getElementById('batchToggleBtn');
+            if (btn) {
+                btn.textContent = '取消';
+                btn.classList.add('bg-indigo-600', 'text-white');
+                btn.classList.remove('bg-gray-200', 'text-gray-700');
+            }
+            document.getElementById('batchToolbar')?.classList.remove('hidden');
+            renderNoteList();
+        }
+
+        function exitBatchMode() {
+            batchMode = false;
+            const btn = document.getElementById('batchToggleBtn');
+            if (btn) {
+                btn.textContent = '批量';
+                btn.classList.remove('bg-indigo-600', 'text-white');
+                btn.classList.add('bg-gray-200', 'text-gray-700');
+            }
+            document.getElementById('batchToolbar')?.classList.add('hidden');
+            const selectAllCb = document.getElementById('batchSelectAll');
+            if (selectAllCb) selectAllCb.checked = false;
+            renderNoteList();
+        }
+
+        async function batchDeleteNotes() {
+            const checkboxes = document.querySelectorAll('.batch-checkbox:checked');
+            if (checkboxes.length === 0) return alert('请先勾选要删除的笔记');
+            if (!confirm(`确定删除选中的 ${checkboxes.length} 篇笔记吗？将移入回收站`)) return;
+            for (const cb of checkboxes) {
+                const nf = noteFiles.find(n => n.name === cb.dataset.name);
+                if (nf) {
+                    try {
+                        await addToTrash({
+                            id: nf.name,
+                            name: nf.name,
+                            displayName: nf.displayName,
+                            content: nf.content || '',
+                            tags: nf.tags || [],
+                            pinned: nf.pinned,
+                            lastModified: nf.lastModified,
+                        });
+                        await folderHandle.removeEntry(nf.name);
+                        if (currentNoteFile && currentNoteFile.name === cb.dataset.name) {
+                            currentNoteFile = null;
+                        }
+                    } catch (e) {
+                        console.warn(`删除 ${cb.dataset.name} 失败`, e);
+                    }
+                }
+            }
+            if (!currentNoteFile) closeNoteDetail();
+            exitBatchMode();
+            await refreshNoteList();
+        }
+
+        async function openTrashPanel() {
+            document.getElementById('noteList').classList.add('hidden');
+            document.getElementById('trashPanel').classList.remove('hidden');
+            await renderTrashList();
+        }
+
+        function closeTrashPanel() {
+            document.getElementById('trashPanel').classList.add('hidden');
+            document.getElementById('noteList').classList.remove('hidden');
+        }
+
+        async function renderTrashList() {
+            const trashItems = await loadTrash();
+            const container = document.getElementById('trashList');
+            if (trashItems.length === 0) {
+                container.innerHTML = '<div class="text-center text-gray-400 py-10 text-sm">回收站为空</div>';
+                return;
+            }
+            trashItems.sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0));
+            container.innerHTML = trashItems.map(item => {
+                const dateStr = new Date(item.deletedAt).toLocaleDateString('zh-CN');
+                return `
+                    <div class="note-list-item" data-id="${escapeAttr(item.id)}">
+                        <div class="flex items-center justify-between mb-0.5">
+                            <h3 class="font-bold text-gray-700 text-sm truncate flex-1 mr-2">${escapeHtml(item.displayName)}</h3>
+                            <span class="text-xs text-gray-400 flex-shrink-0">${dateStr}</span>
+                        </div>
+                        <div class="flex items-center gap-2 mt-1">
+                            <button class="trash-restore text-xs text-indigo-500 hover:text-indigo-700" data-id="${escapeAttr(item.id)}">恢复</button>
+                            <button class="trash-perm-delete text-xs text-red-400 hover:text-red-600" data-id="${escapeAttr(item.id)}">永久删除</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            container.querySelectorAll('.trash-restore').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    restoreFromTrash(btn.dataset.id);
+                });
+            });
+            container.querySelectorAll('.trash-perm-delete').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    permanentDelete(btn.dataset.id);
+                });
+            });
+            container.querySelectorAll('.note-list-item[data-id]').forEach(item => {
+                item.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const id = item.dataset.id;
+                    window.createContextMenu([
+                        { label: '恢复', action: () => restoreFromTrash(id) },
+                        { label: '永久删除', danger: true, action: () => permanentDelete(id) },
+                    ], e);
+                });
+            });
+        }
+
+        async function restoreFromTrash(id) {
+            const item = await getTrashItem(id);
+            if (!item || !folderHandle) return;
+            try {
+                const fileName = item.name;
+                const handle = await folderHandle.getFileHandle(fileName, { create: true });
+                const writable = await handle.createWritable();
+                await writable.write(item.content || '');
+                await writable.close();
+                await removeFromTrash(id);
+                await renderTrashList();
+                await refreshNoteList();
+            } catch (e) {
+                alert('恢复失败：' + e.message);
+            }
+        }
+
+        async function permanentDelete(id) {
+            if (!confirm('永久删除后无法恢复，确定要永久删除此笔记吗？')) return;
+            await removeFromTrash(id);
+            await renderTrashList();
+        }
+
+        async function handleClearTrash() {
+            const trashItems = await loadTrash();
+            if (trashItems.length === 0) return;
+            if (!confirm('确定要清空回收站吗？回收站中的所有笔记将被永久删除，此操作不可恢复！')) return;
+            await clearTrash();
+            await renderTrashList();
+        }
+
+        async function openNote(fileName) {
+            const nf = noteFiles.find(n => n.name === fileName);
+            if (!nf) return;
+
+            recordNoteOpen(fileName);
+
+            if (currentNoteFile && currentNoteFile.name !== fileName) {
+                await saveCurrentNote();
+            }
+
+            currentNoteFile = nf;
+            _currentFileNameForCursor = fileName;
+            try {
+                const handle = nf.handle;
+                const file = await handle.getFile();
+                const content = await file.text();
+
+                const tagsLine = content.split('\n')[0] || '';
+                if (tagsLine.startsWith('tags:')) {
+                    document.getElementById('noteTagsInput').value = tagsLine.slice(5);
+                } else {
+                    document.getElementById('noteTagsInput').value = '';
+                }
+                const sourceVal = parseSource(content);
+                document.getElementById('noteSourceInput').value = sourceVal;
+                syncTagsFromInput();
+                renderTagPills();
+
+                const displayContent = stripMetaLines(content);
+                document.getElementById('noteTitleInput').value = nf.displayName;
+                setEditorContent(displayContent);
+
+                if (useMilkdown && milkEditor && milkdownModules.core) {
+                    const { editorViewCtx } = milkdownModules.core;
+                    const { TextSelection } = milkdownModules.pmState;
+                    setTimeout(() => {
+                        milkEditor.action((ctx) => {
+                            const view = ctx.get(editorViewCtx);
+                            if (!view) return;
+                            const saved = localStorage.getItem('noteCursor_' + fileName);
+                            if (saved) {
+                                try {
+                                    const pos = parseInt(saved);
+                                    if (!isNaN(pos) && pos >= 0 && pos <= view.state.doc.content.size) {
+                                        const tr = view.state.tr.setSelection(TextSelection.create(view.state.doc, pos));
+                                        view.dispatch(tr);
+                                        view.focus();
+                                    }
+                                } catch(e) {}
+                            }
+                        });
+                    }, 100);
+                } else {
+                    const textarea = document.getElementById('noteEditor');
+                    if (textarea) {
+                        const saved = localStorage.getItem('noteCursor_' + fileName);
+                        if (saved) {
+                            try {
+                                textarea.selectionStart = textarea.selectionEnd = parseInt(saved);
+                            } catch(e) {}
+                        }
+                        textarea.focus();
+                    }
+                }
+                document.getElementById('noteMeta').textContent = `修改于 ${new Date(nf.lastModified).toLocaleString('zh-CN')}`;
+                document.getElementById('saveStatus').textContent = '';
+                document.getElementById('pinNoteBtn').innerHTML = nf.pinned ? iconPin('w-4 h-4') + ' 取消置顶' : iconPin('w-4 h-4') + ' 置顶';
+
+                document.getElementById('noteEmptyState').classList.add('hidden');
+                document.getElementById('noteEditorArea').classList.remove('hidden');
+                showFormatBar();
+                updateWordCount();
+                updateFormatState();
+
+                if (isMobile) {
+                    document.getElementById('noteSidebar').classList.remove('mobile-show');
+                    document.getElementById('noteDetailArea').classList.add('mobile-show');
+                }
+
+                renderNoteList();
+            } catch (e) {
+                alert('打开笔记失败：' + e.message);
+                currentNoteFile = null;
+            }
+        }
+
+        async function saveCurrentNote() {
+            if (!currentNoteFile) return;
+            try {
+                ensureNoteCreatedTime(currentNoteFile.name);
+                recordNoteModify(currentNoteFile.name);
+                const title = document.getElementById('noteTitleInput').value.trim() || '未命名笔记';
+                const tags = document.getElementById('noteTagsInput').value.trim();
+                const source = document.getElementById('noteSourceInput').value.trim();
+                const body = getEditorContent();
+                const tagsLine = tags ? `tags: ${tags}\n` : '';
+                const sourceLine = source ? `source: ${source}\n` : '';
+                const fullContent = tagsLine + sourceLine + body;
+
+                const handle = currentNoteFile.handle;
+                const writable = await handle.createWritable();
+                await writable.write(fullContent);
+                await writable.close();
+
+                const newFileName = (currentNoteFile.pinned ? '!' : '') + title + '.md';
+                if (newFileName !== currentNoteFile.name) {
+                    await renameFile(currentNoteFile.name, newFileName);
+                }
+
+                document.getElementById('saveStatus').textContent = '已保存 ✓';
+                await refreshNoteList();
+            } catch (e) {
+                document.getElementById('saveStatus').textContent = '保存失败';
+                console.error('保存笔记失败', e);
+            }
+        }
+
+        async function renameFile(oldName, newName) {
+            if (oldName === newName) return;
+            try {
+                const oldHandle = await folderHandle.getFileHandle(oldName);
+                const oldFile = await oldHandle.getFile();
+                const content = await oldFile.text();
+
+                const newHandle = await folderHandle.getFileHandle(newName, { create: true });
+                const writable = await newHandle.createWritable();
+                await writable.write(content);
+                await writable.close();
+
+                await folderHandle.removeEntry(oldName);
+
+                currentNoteFile.name = newName;
+                currentNoteFile.handle = newHandle;
+                currentNoteFile.displayName = newName.startsWith('!') ? newName.slice(1, -3) : newName.slice(0, -3);
+                currentNoteFile.title = currentNoteFile.displayName;
+            } catch (e) {
+                console.error('重命名失败', e);
+            }
+        }
+
+        async function createNewNote() {
+            if (!folderHandle) return alert('请先选择笔记文件夹');
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+            const fileName = `未命名笔记_${timestamp}.md`;
+            try {
+                const handle = await folderHandle.getFileHandle(fileName, { create: true });
+                const writable = await handle.createWritable();
+                await writable.write('');
+                await writable.close();
+                ensureNoteCreatedTime(fileName);
+                await refreshNoteList();
+                await openNote(fileName);
+                document.getElementById('noteTitleInput').focus();
+                document.getElementById('noteTitleInput').select();
+            } catch (e) {
+                alert('新建笔记失败：' + e.message);
+            }
+        }
+
+        async function createNoteFromSource(sourceTitle, sourceType, tagParam) {
+            if (!folderHandle) return;
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+            const safeTitle = sourceTitle.replace(/[\\/:*?"<>|]/g, '_');
+            const fileName = `${safeTitle}_${tagParam}_${timestamp}.md`;
+            const sourceLine = sourceTitle && sourceType ? `source: ${sourceTitle}::${sourceType}` : '';
+            const tagsLine = tagParam ? `tags: ${tagParam}` : '';
+            const content = (tagsLine ? tagsLine + '\n' : '') + (sourceLine ? sourceLine + '\n' : '');
+            try {
+                const handle = await folderHandle.getFileHandle(fileName, { create: true });
+                const writable = await handle.createWritable();
+                await writable.write(content);
+                await writable.close();
+                ensureNoteCreatedTime(fileName);
+                await refreshNoteList();
+                await openNote(fileName);
+                document.getElementById('noteTitleInput').value = sourceTitle || '未命名笔记';
+                document.getElementById('noteSourceInput').value = sourceTitle && sourceType ? `${sourceTitle}::${sourceType}` : '';
+                setEditorContent('');
+                showFormatBar();
+                if (useMilkdown) {
+                    document.getElementById('milkdown-editor').focus();
+                } else {
+                    document.getElementById('noteEditor').focus();
+                }
+            } catch (e) {
+                alert('新建笔记失败：' + e.message);
+            }
+        }
+
+        async function deleteCurrentNote() {
+            if (!currentNoteFile) return;
+            if (!confirm(`确定删除「${currentNoteFile.displayName}」吗？将移入回收站`)) return;
+            try {
+                await addToTrash({
+                    id: currentNoteFile.name,
+                    name: currentNoteFile.name,
+                    displayName: currentNoteFile.displayName,
+                    content: getEditorContent(),
+                    tags: currentTags.slice(),
+                    pinned: currentNoteFile.pinned,
+                    lastModified: currentNoteFile.lastModified,
+                });
+                await folderHandle.removeEntry(currentNoteFile.name);
+                currentNoteFile = null;
+                closeNoteDetail();
+                await refreshNoteList();
+            } catch (e) {
+                alert('删除失败：' + e.message);
+            }
+        }
+
+        async function togglePinCurrentNote() {
+            if (!currentNoteFile) return;
+            const isPinned = currentNoteFile.pinned;
+            const currentName = currentNoteFile.name;
+            const newName = isPinned
+                ? currentName.startsWith('!') ? currentName.slice(1) : currentName
+                : '!' + currentName;
+            await renameFile(currentName, newName);
+            currentNoteFile.pinned = !isPinned;
+            document.getElementById('pinNoteBtn').innerHTML = currentNoteFile.pinned ? iconPin('w-4 h-4') + ' 取消置顶' : iconPin('w-4 h-4') + ' 置顶';
+            await refreshNoteList();
+        }
+
+        function closeNoteDetail() {
+            if (currentNoteFile) saveCurrentNote();
+            document.getElementById('noteEditorArea').classList.add('hidden');
+            document.getElementById('noteEmptyState').classList.remove('hidden');
+            hideFormatBar();
+            currentNoteFile = null;
+            if (useMilkdown) {
+                setEditorContent('');
+            }
+
+            if (isMobile) {
+                document.getElementById('noteSidebar').classList.add('mobile-show');
+                document.getElementById('noteDetailArea').classList.remove('mobile-show');
+            }
+
+            renderNoteList();
+        }
+
+        function exportCurrentNote() {
+            if (!currentNoteFile) return;
+            const tags = document.getElementById('noteTagsInput').value.trim();
+            const body = getEditorContent();
+            const tagsLine = tags ? `tags: ${tags}\n` : '';
+            const content = tagsLine + body;
+            const blob = new Blob([content], { type: 'text/markdown' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${currentNoteFile.displayName}.md`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        /* ── 右键菜单辅助函数 ── */
+        async function togglePinByName(name, pin) {
+            const nf = noteFiles.find(n => n.name === name);
+            if (!nf) return;
+            const currentName = nf.name;
+            const newName = pin
+                ? (currentName.startsWith('!') ? currentName : '!' + currentName)
+                : (currentName.startsWith('!') ? currentName.slice(1) : currentName);
+            await renameFile(currentName, newName);
+            nf.pinned = pin;
+            if (currentNoteFile && currentNoteFile.name === name) {
+                currentNoteFile.pinned = pin;
+                document.getElementById('pinNoteBtn').innerHTML = pin ? iconPin('w-4 h-4') + ' 取消置顶' : iconPin('w-4 h-4') + ' 置顶';
+            }
+            await refreshNoteList();
+        }
+
+        async function renameNoteByName(name) {
+            const nf = noteFiles.find(n => n.name === name);
+            if (!nf) return;
+            const newTitle = prompt('请输入新标题：', nf.displayName);
+            if (!newTitle || newTitle.trim() === '' || newTitle === nf.displayName) return;
+            const isPinned = nf.pinned;
+            const newFileName = (isPinned ? '!' : '') + newTitle.trim() + '.md';
+            await renameFile(name, newFileName);
+            if (currentNoteFile && currentNoteFile.name === name) {
+                currentNoteFile.name = newFileName;
+                currentNoteFile.displayName = newTitle.trim();
+                document.getElementById('noteTitleInput').value = newTitle.trim();
+            }
+            await refreshNoteList();
+        }
+
+        async function toggleArchiveByName(name, isArchived) {
+            const nf = noteFiles.find(n => n.name === name);
+            if (!nf) return;
+            try {
+                const handle = nf.handle;
+                const file = await handle.getFile();
+                const content = await file.text();
+                const lines = content.split('\n');
+                let tagsLine = '';
+                let restStart = 0;
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    if (line.startsWith('tags:')) { tagsLine = lines[i]; restStart = i + 1; break; }
+                    if (!line.startsWith('source:') && line !== '') { restStart = i; break; }
+                }
+                let currentTags = tagsLine ? tagsLine.slice(5).split(/[,，]/).map(t => t.trim()).filter(t => t) : [];
+                if (isArchived) {
+                    currentTags = currentTags.filter(t => t !== '归档');
+                } else {
+                    if (!currentTags.includes('归档')) currentTags.push('归档');
+                }
+                const newTagsLine = currentTags.length > 0 ? `tags: ${currentTags.join(', ')}\n` : '';
+                const restContent = lines.slice(restStart).join('\n');
+                for (let i = 1; i < restStart; i++) {
+                    const line = lines[i].trim();
+                    if (line.startsWith('source:') || line === '') continue;
+                    break;
+                }
+                const prefixLines = lines.slice(0, restStart).filter(l => {
+                    const t = l.trim();
+                    return t.startsWith('source:') || t === '';
+                });
+                const prefix = prefixLines.join('\n');
+                const newContent = (newTagsLine ? newTagsLine : '') + (prefix ? prefix + '\n' : '') + restContent;
+                const writable = await handle.createWritable();
+                await writable.write(newContent);
+                await writable.close();
+                await refreshNoteList();
+            } catch (e) {
+                alert('归档操作失败：' + e.message);
+            }
+        }
+
+        function exportNoteByName(name) {
+            const nf = noteFiles.find(n => n.name === name);
+            if (!nf) return;
+            const tags = nf.tags ? nf.tags.join(', ') : '';
+            const content = nf.content || '';
+            const tagsLine = tags ? `tags: ${tags}\n` : '';
+            const fullContent = tagsLine + content;
+            const blob = new Blob([fullContent], { type: 'text/markdown' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${nf.displayName}.md`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        init();
+    </script>
+</body>
+</html>
