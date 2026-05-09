@@ -144,6 +144,43 @@ async function getRecordById(id) {
     });
 }
 
+async function batchUpdateRecords(updatesArray) {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        const failed = [];
+        let completed = 0;
+
+        updatesArray.forEach(({ id, updates }) => {
+            const getRequest = store.get(id);
+            getRequest.onsuccess = () => {
+                const existing = getRequest.result;
+                if (!existing) {
+                    failed.push({ id, error: '记录不存在' });
+                } else {
+                    store.put({ ...existing, ...updates, id });
+                }
+                completed++;
+                if (completed === updatesArray.length) {
+                    if (failed.length) console.warn('批量更新失败项：', failed);
+                    resolve(failed);
+                }
+            };
+            getRequest.onerror = () => {
+                failed.push({ id, error: getRequest.error });
+                completed++;
+                if (completed === updatesArray.length) {
+                    console.warn('批量更新失败项：', failed);
+                    resolve(failed);
+                }
+            };
+        });
+
+        tx.onerror = () => reject(tx.error);
+    });
+}
+
 async function saveFolderHandle(handle) {
     const db = await openDB();
     return new Promise((resolve, reject) => {

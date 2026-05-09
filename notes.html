@@ -297,10 +297,6 @@
                         </div>
                         <div class="p-2 border-t border-gray-200 flex flex-col gap-1">
                             <div class="flex items-center justify-between">
-                                <label class="inline-flex items-center gap-1 text-xs text-gray-500 cursor-pointer" title="隐藏已归档笔记（含 #归档 标签）">
-                                    <input type="checkbox" id="hideArchivedToggle">
-                                    隐藏已归档
-                                </label>
                                 <button id="backupBtn" class="text-xs text-gray-400 hover:text-indigo-600 inline-flex items-center gap-1" title="一键备份所有笔记为 ZIP">
                                     <svg class="w-3.5 h-3.5" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1"><path stroke-linecap="round" stroke-linejoin="round" d="M10 3v10m0 0-3-3m3 3 3-3"/><path d="M4 14v3h12v-3"/></svg>
                                     备份
@@ -308,7 +304,10 @@
                             </div>
                             <div id="backupReminder" class="text-xs text-gray-300 hidden">上次备份超过 14 天</div>
                             <div class="flex items-center justify-between">
-                                <span id="folderStatus" class="text-xs text-gray-400">已连接笔记文件夹</span>
+                                <label class="inline-flex items-center gap-1 text-xs text-gray-500 cursor-pointer" title="隐藏已归档笔记（含 #归档 标签）">
+                                    <input type="checkbox" id="hideArchivedToggle">
+                                    隐藏已归档
+                                </label>
                                 <button id="trashBtn" class="text-xs text-gray-400 hover:text-indigo-600 inline-flex items-center gap-1">
                                     <svg class="w-3.5 h-3.5" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1"><path stroke-linecap="round" stroke-linejoin="round" d="M4 5h12M7 5V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m1 0v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V5h7Z"/></svg>
                                     回收站
@@ -2125,9 +2124,8 @@
             return files;
         }
 
-        async function refreshNoteList() {
-            noteFiles = await scanNotesFolder();
-            for (const nf of noteFiles) {
+        async function loadNoteContent(nf) {
+            try {
                 const content = await nf.file.text();
                 nf.content = content;
                 nf.tags = parseTags(content);
@@ -2136,9 +2134,34 @@
                 const bodyText = stripMetaLines(content);
                 nf.preview = bodyText.substring(0, 100);
                 nf.bodyText = bodyText;
+            } catch (e) {
+                console.warn(`加载笔记内容失败: ${nf.name}`, e);
+                nf.tags = [];
+                nf.preview = '';
+                nf.bodyText = '';
+                nf.content = '';
+            }
+        }
+
+        async function refreshNoteList() {
+            noteFiles = await scanNotesFolder();
+            // 先设置标题，快速渲染列表骨架
+            for (const nf of noteFiles) {
+                nf.title = nf.displayName;
+                nf.tags = [];
+                nf.preview = '';
+                nf.content = '';
+                nf.bodyText = '';
+            }
+            renderNoteList();
+            // 分批加载内容，每批5篇
+            const batchSize = 5;
+            for (let i = 0; i < noteFiles.length; i += batchSize) {
+                const batch = noteFiles.slice(i, i + batchSize);
+                await Promise.all(batch.map(nf => loadNoteContent(nf)));
+                renderNoteList();
             }
             renderTagCloud();
-            renderNoteList();
         }
 
         function parseTags(content) {
