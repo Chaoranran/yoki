@@ -614,8 +614,8 @@
             const linkedNotesHtml = renderLinkedNotes(group);
             const watchDatesHtml = group.items.map(item => {
                 const d = item.endDate || item.startDate || item.viewYear || '';
-                return d ? `<span class="text-indigo-600 font-semibold">${item.watchCount || 1}刷</span> <span class="text-gray-500">${d}</span>` : '';
-            }).filter(Boolean).join(' · ');
+                return d ? `<span class="watch-date-entry" data-record-id="${item.id}"><span class="text-indigo-600 font-semibold">${item.watchCount || 1}刷</span> <span class="text-gray-500">${d}</span></span>` : '';
+            }).filter(Boolean).join(' <span class="text-gray-300">·</span> ');
 
             let coverUrl = latestItem?.imageUrl || firstItem.imageUrl || '';
             coverUrl = coverUrl ? String(coverUrl) : '';
@@ -642,9 +642,11 @@
                         ${tagsHtml ? `<div class="flex flex-wrap gap-0.5 mt-1">${tagsHtml}</div>` : ''}
                         ${watchDatesHtml ? `<div class="watch-date-line mt-1 text-xs">${watchDatesHtml}</div>` : ''}
                     </div>
-                    ${linkedNotesHtml ? `<div class="text-xs text-gray-600 leading-snug space-y-1 shrink min-w-0 ml-8">${linkedNotesHtml}</div>` : ''}
+                    ${linkedNotesHtml ? `<div class="text-xs text-gray-600 leading-snug space-y-1 shrink min-w-0">${linkedNotesHtml}</div>` : ''}
                     </div>
-                    <div class="card-note-btns flex gap-1 flex-shrink-0 ml-3">
+                    <div class="card-note-btns flex items-center gap-1 flex-shrink-0 ml-3">
+                        <button class="rewatch-btn text-xs font-medium bg-indigo-50 hover:bg-indigo-100 text-indigo-500 py-1 px-2 rounded-full transition whitespace-nowrap" data-title="${escapeAttr(String(group.title))}" data-type="${escapeAttr(group.type)}">再刷</button>
+                        <button class="delete-group-btn text-xs font-medium bg-red-50 hover:bg-red-100 text-red-600 py-1 px-2 rounded-full transition whitespace-nowrap" data-title="${escapeAttr(String(group.title))}" data-type="${escapeAttr(group.type)}">删除</button>
                         ${quoteBtn}${thoughtBtn}
                     </div>
                 </div>
@@ -713,6 +715,39 @@
                     window.createContextMenu([
                         { label: '编辑', icon: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M11 2l3 3-8 8H3v-3l8-8z"/></svg>', action: () => { window.location.href = `add.html?id=${recordId}`; } },
                         { label: '删除', icon: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4h10M6 4V2.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5V4m1 0v9.5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4h7Z"/></svg>', danger: true, action: () => handleDeleteRecord(recordId) },
+                    ], e);
+                });
+            });
+
+            document.querySelectorAll('.record-card-horizontal').forEach(card => {
+                card.addEventListener('contextmenu', (e) => {
+                    if (e.target.closest('.watch-date-line')) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const title = card.dataset.title;
+                    const type = card.dataset.type;
+                    if (!title || !type) return;
+                    window.createContextMenu([
+                        { label: '再刷一次', icon: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2 8a6 6 0 1 1 1.5 4"/><path stroke-linecap="round" d="M2 12V8h4"/></svg>', action: () => goToRewatch(title, type) },
+                        { label: '删除全部', icon: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4h10M6 4V2.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5V4m1 0v9.5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4h7Z"/></svg>', danger: true, action: () => deleteGroup(title, type) },
+                    ], e);
+                });
+            });
+
+            document.querySelectorAll('.record-card-horizontal .watch-date-line').forEach(line => {
+                line.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const card = line.closest('.record-card-horizontal');
+                    const title = card?.dataset.title;
+                    const type = card?.dataset.type;
+                    if (!title || !type) return;
+                    const dateEntry = e.target.closest('.watch-date-entry');
+                    const recordId = dateEntry ? dateEntry.dataset.recordId : null;
+                    if (!recordId) return;
+                    window.createContextMenu([
+                        { label: '编辑', icon: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M11 2l3 3-8 8H3v-3l8-8z"/></svg>', action: () => { if (recordId) window.location.href = `add.html?id=${recordId}`; } },
+                        { label: '删除', icon: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4h10M6 4V2.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5V4m1 0v9.5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4h7Z"/></svg>', danger: true, action: () => { if (recordId) handleDeleteRecord(recordId); } },
                     ], e);
                 });
             });
