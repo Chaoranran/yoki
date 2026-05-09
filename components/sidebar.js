@@ -86,6 +86,10 @@ function iconImportSidebar() {
 function iconExportSidebar(cls) {
     return `<svg class="${cls || 'w-5 h-5'}" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10 12V3m0 0L7 5.5M10 3l3 2.5"/><path stroke-linecap="round" stroke-linejoin="round" d="M4 11v4a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-4"/></svg>`;
 }
-function iconThemeSidebar() {
-    return `<svg class="w-5 h-5" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="4"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.93 4.93l1.41 1.41M13.66 13.66l1.41 1.41M4.93 15.07l1.41-1.41M13.66 6.34l1.41-1.41"/></svg>`;
+function iconThemeSidebar(isDark) {
+    if (isDark === undefined) isDark = localStorage.getItem('darkMode') === 'true';
+    if (isDark) {
+        return `<svg class="w-5 h-5" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="4"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.93 4.93l1.41 1.41M13.66 13.66l1.41 1.41M4.93 15.07l1.41-1.41M13.66 6.34l1.41-1.41"/></svg>`;
+    }
+    return `<svg class="w-5 h-5" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 10.74A7 7 0 1 1 9.26 3 5.5 5.5 0 0 0 17 10.74z"/></svg>`;
 }

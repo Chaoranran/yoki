@@ -68,6 +68,7 @@
             cursor: context-menu;
             transition: background-color 0.15s;
             gap: 1rem;
+            min-width: 0;
         }
         .record-card-horizontal:hover {
             background-color: var(--c-gray-100, #f3f4f6);
@@ -89,7 +90,7 @@
             color: #9ca3af;
             cursor: pointer;
             transition: color 0.15s;
-            font-size: 0.875rem;
+            font-size: 1rem;
             font-weight: 500;
             padding: 0.25rem 0;
             background: none;
@@ -113,7 +114,7 @@
         .action-btn {
             padding: 0.25rem 0.75rem;
             border-radius: 0.375rem;
-            font-size: 0.75rem;
+            font-size: 0.875rem;
             font-weight: 500;
             background: transparent;
             color: #9ca3af;
@@ -184,7 +185,7 @@
     <div class="flex">
         <div id="sidebar-container"></div>
 
-        <div class="flex-1 ml-16 p-8">
+        <div class="flex-1 ml-16 p-4 sm:p-8 min-w-0">
             <div class="max-w-7xl mx-auto">
                 <div class="flex flex-wrap items-center gap-x-4 gap-y-1 mb-4">
                     <button class="tab-underline active" data-type="all">全部</button>
@@ -226,6 +227,7 @@
                 </div>
                 <div id="recordCount" class="mb-2 text-xs text-gray-300"></div>
                 <div id="recordsDisplay" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4"></div>
+                <div id="endOfListHint" class="hidden text-center py-4 text-xs text-gray-300">—— 已经到底啦～ ——</div>
             </div>
         </div>
     </div>
@@ -634,13 +636,13 @@
                             <span class="inline-block bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded whitespace-nowrap flex-shrink-0">${getTypeName(group.type)}</span>
                             ${statusBadge}
                         </div>
-                        <div class="text-xs text-gray-500 mt-0.5 truncate">
+                        <div class="text-xs text-gray-500 mt-1 truncate">
                             ${firstItem.author ? escapeHtml(String(firstItem.author)) : ''}${firstItem.author && firstItem.country ? ' · ' : ''}${firstItem.country ? escapeHtml(String(firstItem.country)) : ''}${(firstItem.author || firstItem.country) && firstItem.releaseYear ? ' · ' : ''}${firstItem.releaseYear ? escapeHtml(String(firstItem.releaseYear)) : ''}
                         </div>
-                        ${tagsHtml ? `<div class="flex flex-wrap gap-0.5 mt-0.5">${tagsHtml}</div>` : ''}
-                        ${watchDatesHtml ? `<div class="watch-date-line mt-0.5 text-xs">${watchDatesHtml}</div>` : ''}
+                        ${tagsHtml ? `<div class="flex flex-wrap gap-0.5 mt-1">${tagsHtml}</div>` : ''}
+                        ${watchDatesHtml ? `<div class="watch-date-line mt-1 text-xs">${watchDatesHtml}</div>` : ''}
                     </div>
-                    ${linkedNotesHtml ? `<div class="text-xs text-gray-600 leading-snug space-y-1 flex-shrink-0 ml-8">${linkedNotesHtml}</div>` : ''}
+                    ${linkedNotesHtml ? `<div class="text-xs text-gray-600 leading-snug space-y-1 shrink min-w-0 ml-8">${linkedNotesHtml}</div>` : ''}
                     </div>
                     <div class="card-note-btns flex gap-1 flex-shrink-0 ml-3">
                         ${quoteBtn}${thoughtBtn}
@@ -675,6 +677,7 @@
                 } else {
                     container.innerHTML = '<div class="col-span-full text-center text-gray-500 py-10"><p class="text-lg mb-1">暂无记录</p><p class="text-sm mb-4">添加你的第一部作品吧～</p><a href="add.html" class="inline-block px-4 py-2 bg-indigo-600 text-white rounded-md text-sm hover:bg-indigo-700">＋ 添加作品</a></div>';
                 }
+                document.getElementById('endOfListHint')?.classList.add('hidden');
                 return;
             }
 
@@ -774,6 +777,8 @@
                 container.className = 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4';
                 container.style.display = '';
             }
+
+            document.getElementById('endOfListHint')?.classList.remove('hidden');
         }
 
         let hoverTimeout = null;

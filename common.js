@@ -40,8 +40,8 @@ function applyTheme() {
         document.documentElement.classList.add('dark');
     }
     const toggleBtn = document.getElementById('themeToggle');
-    if (toggleBtn) {
-        toggleBtn.textContent = darkMode ? '☀️' : '🌙';
+    if (toggleBtn && typeof iconThemeSidebar === 'function') {
+        toggleBtn.innerHTML = iconThemeSidebar(darkMode);
     }
 }
 
@@ -49,8 +49,8 @@ function toggleTheme() {
     const isDark = document.documentElement.classList.toggle('dark');
     localStorage.setItem('darkMode', isDark);
     const toggleBtn = document.getElementById('themeToggle');
-    if (toggleBtn) {
-        toggleBtn.textContent = isDark ? '☀️' : '🌙';
+    if (toggleBtn && typeof iconThemeSidebar === 'function') {
+        toggleBtn.innerHTML = iconThemeSidebar(isDark);
     }
 }
 
