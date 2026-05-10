@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="referrer" content="no-referrer">
     <title>又记 - 记录</title>
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -227,6 +228,22 @@
                 </div>
                 <div id="recordCount" class="mb-2 text-xs text-gray-300"></div>
                 <div id="recordsDisplay" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4"></div>
+                <div id="skeletonGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 hidden">
+                    ${Array(6).fill(`<div class="bg-white dark:bg-[#262932] rounded-lg shadow-md border border-gray-200 dark:border-gray-600 overflow-hidden">
+                        <div class="w-full h-56 bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
+                        <div class="p-4 space-y-3">
+                            <div class="h-5 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-3/4"></div>
+                            <div class="h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-1/4"></div>
+                            <div class="h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-1/2"></div>
+                            <div class="h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-2/3"></div>
+                            <div class="flex gap-2 mt-3">
+                                <div class="h-6 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse w-12"></div>
+                                <div class="h-6 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse w-12"></div>
+                            </div>
+                            <div class="h-8 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse w-full mt-3"></div>
+                        </div>
+                    </div>`).join('')}
+                </div>
                 <div id="endOfListHint" class="hidden text-center py-4 text-xs text-gray-300">—— 已经到底啦～ ——</div>
             </div>
         </div>
@@ -262,7 +279,15 @@
         let sourceIndex = new Map();
         let folderHandle = null;
 
+        function showSkeleton() {
+            document.getElementById('skeletonGrid')?.classList.remove('hidden');
+        }
+        function hideSkeleton() {
+            document.getElementById('skeletonGrid')?.classList.add('hidden');
+        }
+
         async function init() {
+            showSkeleton();
             initPage('index', loadRecords, saveRecords);
             records = await loadRecords();
             folderHandle = await getFolderHandle();
@@ -656,6 +681,7 @@
         }
 
         function renderGroupedRecords() {
+            hideSkeleton();
             const container = document.getElementById('recordsDisplay');
             if (!container) return;
             const countLabel = document.getElementById('recordCount');
@@ -679,7 +705,11 @@
                 if (hasAnyRecords && isSearching) {
                     container.innerHTML = '<div class="col-span-full text-center text-gray-400 py-10"><p class="text-lg mb-1">没有匹配的作品</p><p class="text-sm">试试其他关键词或筛选条件</p></div>';
                 } else {
-                    container.innerHTML = '<div class="col-span-full text-center text-gray-500 py-10"><p class="text-lg mb-1">暂无记录</p><p class="text-sm mb-4">添加你的第一部作品吧～</p><a href="add.html" class="inline-block px-4 py-2 bg-indigo-600 text-white rounded-md text-sm hover:bg-indigo-700">＋ 添加作品</a></div>';
+                    container.innerHTML = '<div class="col-span-full text-center py-16">'
+                        + '<p class="text-xl text-gray-500 mb-2">还没有任何记录</p>'
+                        + '<p class="text-sm text-gray-400 mb-8">记录你读过的书、看过的电影和剧集吧</p>'
+                        + '<a href="add.html" class="inline-block px-8 py-3 bg-indigo-600 text-white rounded-lg text-base font-medium hover:bg-indigo-700 transition shadow-md hover:shadow-lg">＋ 添加第一条记录</a>'
+                        + '</div>';
                 }
                 document.getElementById('endOfListHint')?.classList.add('hidden');
                 return;
