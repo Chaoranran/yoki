@@ -139,6 +139,8 @@
             max-width: 400px;
             max-height: 300px;
             overflow-y: auto;
+            overflow-x: hidden;
+            word-break: break-word;
             overscroll-behavior: contain;
             padding: 12px 16px;
             font-size: 0.875rem;
@@ -457,11 +459,11 @@
             const latestItem = group.items[0];
             if (latestItem?.thoughts) {
                 const t = escapeHtml(String(latestItem.thoughts).substring(0, 80)).replace(/\n/g, '<br>');
-                if (t) html += `<p class="text-xs text-gray-600 truncate">💭 ${t}${latestItem.thoughts.length > 80 ? '…' : ''}</p>`;
+                if (t) html += `<p class="text-xs text-gray-600 truncate hover-preview-item" data-preview-content="${escapeAttr(String(latestItem.thoughts))}" style="cursor:pointer;">💭 ${t}${latestItem.thoughts.length > 80 ? '…' : ''}</p>`;
             }
             if (latestItem?.goldenQuotes) {
                 const q = escapeHtml(String(latestItem.goldenQuotes).substring(0, 80)).replace(/\n/g, '<br>');
-                if (q) html += `<p class="text-xs text-gray-600 truncate">💬 ${q}${latestItem.goldenQuotes.length > 80 ? '…' : ''}</p>`;
+                if (q) html += `<p class="text-xs text-gray-600 truncate hover-preview-item" data-preview-content="${escapeAttr(String(latestItem.goldenQuotes))}" style="cursor:pointer;">💬 ${q}${latestItem.goldenQuotes.length > 80 ? '…' : ''}</p>`;
             }
             return html;
         }
@@ -805,6 +807,22 @@
                         renderTagCloud();
                         renderGroupedRecords();
                     }
+                });
+            });
+
+            document.querySelectorAll('.hover-preview-item').forEach(el => {
+                el.style.cursor = 'pointer';
+                el.addEventListener('mouseenter', (e) => {
+                    clearTimeout(hoverTimeout);
+                    hoverTimeout = setTimeout(() => showHoverPreview(el.dataset.previewContent, e), 200);
+                });
+                el.addEventListener('mousemove', (e) => {
+                    const preview = document.getElementById('hoverPreview');
+                    if (preview.style.display === 'block') positionHoverPreview(e);
+                });
+                el.addEventListener('mouseleave', () => {
+                    clearTimeout(hoverTimeout);
+                    hoverTimeout = setTimeout(() => hideHoverPreview(), 200);
                 });
             });
 
