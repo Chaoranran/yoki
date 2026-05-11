@@ -3,6 +3,7 @@ function renderSidebar(activePage) {
         { id: 'notes',     href: 'notes.html',     label: '笔记', icon: iconNotes },
         { id: 'index',     href: 'index.html',     label: '记录', icon: iconRecords },
         { id: 'add',       href: 'add.html',       label: '添加', icon: iconAdd },
+        { id: 'gallery',   href: 'gallery.html',   label: '素材', icon: iconGallery },
         { id: 'search',    href: 'search.html',    label: '搜索', icon: iconSearchSidebar },
         { id: 'dashboard', href: 'dashboard.html', label: '统计', icon: iconDashboard },
         { id: 'heatmap',   href: 'heatmap.html',   label: '热力图', icon: iconHeatmap },
@@ -64,6 +65,9 @@ function iconNotes() {
 }
 function iconRecords() {
     return `<svg class="w-5 h-5" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="16" height="16" rx="2"/><path d="M7 2v16M13 2v16"/></svg>`;
+}
+function iconGallery() {
+    return `<svg class="w-5 h-5" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="2" y="2" width="16" height="16" rx="2"/><circle cx="7" cy="7" r="1.5"/><path d="m2 13 4-4 3 3 3-4 6 6v1a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-1z"/></svg>`;
 }
 function iconAdd() {
     return `<svg class="w-5 h-5" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="8"/><path stroke-linecap="round" d="M10 6v8M6 10h8"/></svg>`;

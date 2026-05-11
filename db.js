@@ -17,10 +17,11 @@
  */
 
 const DB_NAME = 'YoujiDB';
-const DB_VERSION = 3;
+const DB_VERSION = 5;
 const STORE_NAME = 'records';
 const TRASH_STORE = 'trash';
 const CONFIG_STORE = 'config';
+const GALLERY_STORE = 'gallery';
 const FOLDER_HANDLE_KEY = 'folderHandle';
 
 function normalizeTags(record) {
@@ -47,6 +48,18 @@ function openDB() {
             }
             if (!db.objectStoreNames.contains(CONFIG_STORE)) {
                 db.createObjectStore(CONFIG_STORE, { keyPath: 'id' });
+            }
+            if (!db.objectStoreNames.contains(GALLERY_STORE)) {
+                const store = db.createObjectStore(GALLERY_STORE, { keyPath: 'path' });
+                store.createIndex('folder', 'folder', { unique: false });
+            }
+            // 侧载方式确保索引存在（兼容已升级但缺索引的库）
+            const tx = event.target.transaction;
+            if (tx && db.objectStoreNames.contains(GALLERY_STORE)) {
+                const store = tx.objectStore(GALLERY_STORE);
+                if (!store.indexNames.contains('folder')) {
+                    store.createIndex('folder', 'folder', { unique: false });
+                }
             }
         };
 
@@ -318,5 +331,25 @@ async function getTrashItem(id) {
         const request = store.get(id);
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
+    });
+}
+
+async function saveGalleryFolderHandle(handle) {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(CONFIG_STORE, 'readwrite');
+        tx.objectStore(CONFIG_STORE).put({ id: 'galleryFolderHandle', handle });
+        tx.oncomplete = resolve;
+        tx.onerror = reject;
+    });
+}
+
+async function getGalleryFolderHandle() {
+    const db = await openDB();
+    return new Promise((resolve) => {
+        const tx = db.transaction(CONFIG_STORE, 'readonly');
+        const req = tx.objectStore(CONFIG_STORE).get('galleryFolderHandle');
+        req.onsuccess = () => resolve(req.result?.handle || null);
+        req.onerror = () => resolve(null);
     });
 }
