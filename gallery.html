@@ -70,6 +70,7 @@
         let sortedCache = [];
         let viewerPaths = [];
         let viewerIndex = -1;
+        let isPasting = false;
 
         async function init() {
             initPage('gallery');
@@ -114,6 +115,17 @@
                 renderFolder(currentFolder);
             });
             updateSortUI();
+
+            // 右键菜单
+            window.registerContextMenu('.gallery-item[data-path]', (target) => {
+                const path = target.dataset.path;
+                return [
+                    { label: '在新标签打开', action: () => openImageInTab(path) },
+                    { label: '复制路径', action: () => navigator.clipboard.writeText(path) },
+                    { separator: true },
+                    { label: '复制图片', action: () => copyImageToClipboard(path) },
+                ];
+            });
         }
 
         async function selectGalleryFolder() {
@@ -670,6 +682,154 @@
                 div.classList.add('text-red-400');
             }
         }
+
+        function mimeToExt(mime) {
+            return { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'image/gif': '.gif', 'image/bmp': '.bmp', 'image/svg+xml': '.svg', 'image/avif': '.avif' }[mime] || '.png';
+        }
+
+        async function openImageInTab(path) {
+            try {
+                const parts = path.split('/').filter(Boolean);
+                let h = galleryHandle;
+                for (let i = 0; i < parts.length - 1; i++) h = await h.getDirectoryHandle(parts[i]);
+                const f = await (await h.getFileHandle(parts[parts.length - 1])).getFile();
+                window.open(URL.createObjectURL(f));
+            } catch (e) { console.warn('打开失败', e); }
+        }
+
+        async function copyImageToClipboard(path) {
+            try {
+                const parts = path.split('/').filter(Boolean);
+                let h = galleryHandle;
+                for (let i = 0; i < parts.length - 1; i++) h = await h.getDirectoryHandle(parts[i]);
+                const f = await (await h.getFileHandle(parts[parts.length - 1])).getFile();
+                await navigator.clipboard.write([new ClipboardItem({ [f.type]: f })]);
+            } catch (e) { console.warn('复制失败', e); }
+        }
+
+        async function importImageFiles(files, targetFolder, defaultName) {
+            if (!files.length || !galleryHandle) return 0;
+            if (isPasting) return 0;
+            isPasting = true;
+            const progress = document.getElementById('scanProgress');
+            progress.classList.remove('hidden');
+            progress.textContent = '正在导入图片...';
+            try {
+                let targetHandle = galleryHandle;
+                const parts = (!targetFolder || targetFolder === '/') ? [] : targetFolder.split('/').filter(Boolean);
+                try {
+                    for (const p of parts) targetHandle = await targetHandle.getDirectoryHandle(p, { create: true });
+                } catch (e) { alert('无法访问文件夹: ' + e.message); return 0; }
+
+                const db = await openDB();
+                let count = 0;
+                for (const file of files) {
+                    try {
+                        let useName = defaultName || file.name || 'IMG_' + Date.now() + '.' + (file.type?.split('/')[1] || 'png');
+                        const ext = '.' + useName.split('.').pop();
+                        let baseName = useName;
+                        let name = baseName, c = 1;
+                        while (true) {
+                            try { await targetHandle.getFileHandle(name); name = baseName.replace(/(\.\w+)$/, '_' + c + '$1'); c++; }
+                            catch (e) { if (e.name === 'NotFoundError') break; else throw e; }
+                        }
+
+                        const fh = await targetHandle.getFileHandle(name, { create: true });
+                        const w = await fh.createWritable();
+                        await w.write(file);
+                        await w.close();
+
+                        const folder = (!targetFolder || targetFolder === '/') ? '/' : targetFolder;
+                        const tx = db.transaction('gallery', 'readwrite');
+                        tx.objectStore('gallery').put({ path: folder + '/' + name, name, folder, type: ext.replace('.', '').toLowerCase(), mtime: Date.now() });
+                        await new Promise(r => { tx.oncomplete = r; tx.onerror = r; });
+                        count++;
+                        progress.textContent = '已导入 ' + count + '/' + files.length + ' 个文件...';
+                    } catch (e) { console.warn('导入失败:', file.name, e); }
+                }
+                return count;
+            } finally {
+                isPasting = false;
+                progress.classList.add('hidden');
+            }
+        }
+
+        document.addEventListener('paste', (e) => {
+            const tag = document.activeElement?.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+            if (!galleryHandle || !e.clipboardData) return;
+            const files = [];
+            let urlName = '';
+            const types = Array.from(e.clipboardData.types);
+            if (types.includes('text/html')) {
+                const m = e.clipboardData.getData('text/html').match(/<img[^>]+src=["']([^"']+)["']/);
+                if (m) { try { const u = new URL(m[1]); const n = u.pathname.split('/').filter(Boolean).pop(); if (n) urlName = decodeURIComponent(n); } catch(e) {} }
+            }
+            if (!urlName && types.includes('text/plain')) {
+                try { const u = new URL(e.clipboardData.getData('text/plain').trim()); const n = u.pathname.split('/').filter(Boolean).pop(); if (n) urlName = decodeURIComponent(n); } catch(e) {}
+            }
+            for (const item of Array.from(e.clipboardData.items)) {
+                const isImage = item.type?.startsWith('image/') || /\.(jpe?g|png|gif|webp|bmp|svg|ico|avif|tiff?)$/i.test(item.type);
+                if (item.kind === 'file' && isImage) {
+                    const f = item.getAsFile();
+                    if (f) files.push(f);
+                }
+            }
+            for (const f of Array.from(e.clipboardData.files)) {
+                const isImage = f.type?.startsWith('image/') || /\.(jpe?g|png|gif|webp|bmp|svg|ico|avif|tiff?)$/i.test(f.name);
+                if (isImage && !files.some(x => x.name === f.name && x.size === f.size)) files.push(f);
+            }
+            if (!files.length) return;
+            e.preventDefault();
+
+            (async () => {
+                const ok = await verifyFolderPermission(galleryHandle);
+                if (!ok) return alert('需要文件夹权限，请重新选择素材文件夹');
+                const n = await importImageFiles(files, currentFolder, urlName);
+                if (n) renderFolder(currentFolder);
+            })();
+        });
+
+        // 拖拽导入
+        let dragCounter = 0;
+        function showDropOverlay(on) {
+            let el = document.getElementById('dropOverlay');
+            if (on) {
+                if (!el) {
+                    el = document.createElement('div');
+                    el.id = 'dropOverlay';
+                    el.className = 'fixed inset-0 z-[99999] flex items-center justify-center pointer-events-none';
+                    el.innerHTML = '<div class="border-4 border-dashed border-indigo-400 bg-indigo-50/80 dark:bg-[#1e1e24]/80 rounded-2xl w-[90%] h-[90%] flex items-center justify-center text-2xl text-indigo-500 font-medium">拖放图片到此处</div>';
+                    document.body.appendChild(el);
+                }
+                el.classList.remove('hidden');
+            } else if (el) el.classList.add('hidden');
+        }
+
+        document.addEventListener('dragenter', (e) => {
+            e.preventDefault();
+            dragCounter++;
+            if (dragCounter === 1) showDropOverlay(true);
+        });
+        document.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dragCounter--;
+            if (dragCounter <= 0) { dragCounter = 0; showDropOverlay(false); }
+        });
+        document.addEventListener('dragover', (e) => e.preventDefault());
+        document.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            dragCounter = 0;
+            showDropOverlay(false);
+            if (!galleryHandle) return;
+            const ok = await verifyFolderPermission(galleryHandle);
+            if (!ok) return alert('需要文件夹权限，请重新选择素材文件夹');
+
+            const files = Array.from(e.dataTransfer?.files || []).filter(f => f.type?.startsWith('image/'));
+            if (!files.length) return;
+            const n = await importImageFiles(files, currentFolder);
+            if (n) renderFolder(currentFolder);
+        });
 
         document.addEventListener('DOMContentLoaded', init);
     </script>
