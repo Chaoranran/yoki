@@ -141,11 +141,14 @@ function extractSectionForSource(bodyText, sourceTitle) {
 }
 
 async function syncThoughtsToSummary(title, type, thoughtsText) {
-    if (!thoughtsText || !thoughtsText.trim()) return;
+    console.log('syncThoughtsToSummary called', { title, type, thoughtsText: thoughtsText?.length });
+    if (!thoughtsText || !thoughtsText.trim()) { console.log('early return: no thoughts'); return; }
     try {
         const handle = await getFolderHandle();
+        console.log('folder handle:', !!handle);
         if (!handle) return;
         const hasPermission = await verifyFolderPermission(handle);
+        console.log('folder permission:', hasPermission);
         if (!hasPermission) return;
 
         const allRecords = await loadRecords();
@@ -156,13 +159,6 @@ async function syncThoughtsToSummary(title, type, thoughtsText) {
         const typeMap = { book: '书籍', movie: '电影', anime: '动漫', series: '剧集', variety: '综艺' };
 
         const fileHandle = await handle.getFileHandle('想法汇总.md', { create: true });
-
-        let existingContent = '';
-        try {
-            const file = await fileHandle.getFile();
-            existingContent = await file.text();
-        } catch (e) {
-        }
 
         const groups = {};
         for (const r of thoughtRecords) {
@@ -188,6 +184,7 @@ async function syncThoughtsToSummary(title, type, thoughtsText) {
         await writable.close();
     } catch (e) {
         console.warn('同步想法到想法汇总.md 失败', e);
+        alert('同步想法到「想法汇总.md」失败：' + e.message + '\n请检查文件夹权限后重试。');
     }
 }
 
@@ -239,5 +236,6 @@ async function syncGoldenQuotesToSummary(title, type, quotesText) {
         await writable.close();
     } catch (e) {
         console.warn('同步金句到金句汇总.md 失败', e);
+        alert('同步金句到「金句汇总.md」失败：' + e.message + '\n请检查文件夹权限后重试。');
     }
 }

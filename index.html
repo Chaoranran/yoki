@@ -881,11 +881,13 @@
         function showHoverPreview(mdContent, event, noteName) {
             const preview = document.getElementById('hoverPreview');
             if (!preview || !mdContent) return;
+            // 换行转 Markdown 换行（两个空格+换行）
+            const content = mdContent.replace(/\n/g, '  \n');
             let html;
             if (typeof marked !== 'undefined' && marked.parse) {
-                html = marked.parse(mdContent);
+                html = marked.parse(content);
             } else {
-                html = escapeHtml(mdContent).replace(/\n/g, '<br>');
+                html = escapeHtml(content).replace(/\n/g, '<br>');
             }
             if (mdContent.length > 500) {
                 const safeName = escapeAttr(noteName || '');

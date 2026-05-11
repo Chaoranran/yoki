@@ -17,9 +17,10 @@
  */
 
 const DB_NAME = 'YoujiDB';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE_NAME = 'records';
 const TRASH_STORE = 'trash';
+const CONFIG_STORE = 'config';
 const FOLDER_HANDLE_KEY = 'folderHandle';
 
 function normalizeTags(record) {
@@ -43,6 +44,9 @@ function openDB() {
             }
             if (!db.objectStoreNames.contains(TRASH_STORE)) {
                 db.createObjectStore(TRASH_STORE, { keyPath: 'id' });
+            }
+            if (!db.objectStoreNames.contains(CONFIG_STORE)) {
+                db.createObjectStore(CONFIG_STORE, { keyPath: 'id' });
             }
         };
 
@@ -184,8 +188,8 @@ async function batchUpdateRecords(updatesArray) {
 async function saveFolderHandle(handle) {
     const db = await openDB();
     return new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE_NAME, 'readwrite');
-        const store = tx.objectStore(STORE_NAME);
+        const tx = db.transaction(CONFIG_STORE, 'readwrite');
+        const store = tx.objectStore(CONFIG_STORE);
         store.put({ id: FOLDER_HANDLE_KEY, handle });
 
         tx.oncomplete = () => resolve();
@@ -195,21 +199,52 @@ async function saveFolderHandle(handle) {
 
 async function getFolderHandle() {
     const db = await openDB();
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE_NAME, 'readonly');
-        const store = tx.objectStore(STORE_NAME);
+    // 先在新 store 中查找
+    let handle = await new Promise((resolve, reject) => {
+        const tx = db.transaction(CONFIG_STORE, 'readonly');
+        const store = tx.objectStore(CONFIG_STORE);
         const request = store.get(FOLDER_HANDLE_KEY);
-
-        request.onsuccess = () => {
-            const handle = request.result?.handle || null;
-            resolve(handle);
-        };
+        request.onsuccess = () => resolve(request.result?.handle || null);
         request.onerror = () => reject(request.error);
     });
+    // 新 store 没有，从旧 records store 迁移
+    if (!handle) {
+        handle = await new Promise((resolve, reject) => {
+            const tx = db.transaction(STORE_NAME, 'readwrite');
+            const store = tx.objectStore(STORE_NAME);
+            const req = store.get(FOLDER_HANDLE_KEY);
+            req.onsuccess = () => {
+                const h = req.result?.handle || null;
+                if (h) {
+                    // 迁移到新 store 并删除旧数据
+                    const configTx = db.transaction(CONFIG_STORE, 'readwrite');
+                    configTx.objectStore(CONFIG_STORE).put({ id: FOLDER_HANDLE_KEY, handle: h });
+                    store.delete(FOLDER_HANDLE_KEY);
+                }
+                resolve(h);
+            };
+            req.onerror = () => reject(req.error);
+        });
+    }
+    // 验证句柄是否有效
+    if (handle && typeof handle.queryPermission !== 'function') {
+        console.warn('文件夹句柄已失效，已自动清除，请在笔记页重新选择。');
+        await new Promise((resolve) => {
+            const tx = db.transaction(CONFIG_STORE, 'readwrite');
+            tx.objectStore(CONFIG_STORE).delete(FOLDER_HANDLE_KEY);
+            resolve();
+        });
+        return null;
+    }
+    return handle;
 }
 
 async function verifyFolderPermission(handle) {
     if (!handle) return false;
+    if (typeof handle.queryPermission !== 'function') {
+        console.warn('文件夹句柄已失效，请在笔记页重新选择文件夹');
+        return false;
+    }
     try {
         const options = { mode: 'readwrite' };
         if ((await handle.queryPermission(options)) === 'granted') return true;

@@ -316,9 +316,13 @@
 
                 // 如果需要同步想法，先刷新文件夹权限（在用户手势有效期内）
                 let folderOk = false;
+                let folderHandleValid = false;
                 if (recordData.thoughts) {
                     const h = await getFolderHandle();
-                    if (h) folderOk = await verifyFolderPermission(h);
+                    if (h) {
+                        folderHandleValid = typeof h.queryPermission === 'function';
+                        folderOk = await verifyFolderPermission(h);
+                    }
                 }
 
                 if (editingRecordId !== null) {
@@ -329,7 +333,10 @@
                     }
                     const msg = '记录更新成功！';
                     if (recordData.thoughts && !folderOk) {
-                        alert(msg + '\n（提示：想法已保存到记录中。如需同步到「想法汇总.md」，请先在笔记页选择并授权笔记文件夹）');
+                        const tip = folderHandleValid
+                            ? '文件夹权限不足，请先在笔记页重新授权文件夹。'
+                            : '笔记文件夹连接已失效，请先在笔记页重新选择文件夹。';
+                        alert(msg + '\n（提示：想法已保存到记录中。' + tip + '）');
                     } else {
                         alert(msg);
                     }
@@ -342,7 +349,10 @@
                     }
                     const baseMsg = isRewatchMode ? '再刷一次记录成功！' : '记录添加成功！';
                     if (recordData.thoughts && !folderOk) {
-                        alert(baseMsg + '\n（提示：想法已保存到记录中。如需同步到「想法汇总.md」，请先在笔记页选择并授权笔记文件夹）');
+                        const tip = folderHandleValid
+                            ? '文件夹权限不足，请先在笔记页重新授权文件夹。'
+                            : '笔记文件夹连接已失效，请先在笔记页重新选择文件夹。';
+                        alert(baseMsg + '\n（提示：想法已保存到记录中。' + tip + '）');
                     } else {
                         alert(baseMsg);
                     }
