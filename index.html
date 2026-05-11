@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="referrer" content="no-referrer">
     <title>又记 - 记录</title>
-
+    <link rel="icon" href="data:,">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -298,9 +298,8 @@
                 if (hasPermission) {
                     noteFiles = await scanNotesFolder(folderHandle);
                     sourceIndex = buildSourceIndex(noteFiles);
-                } else {
-                    folderHandle = null;
                 }
+                // 无权限时保留句柄，用户点击记想法/书摘时会触发授权
             }
             checkUrlParams();
             applyStatusFilterSetting();
@@ -335,8 +334,6 @@
                     if (hasPermission) {
                         noteFiles = await scanNotesFolder(folderHandle);
                         sourceIndex = buildSourceIndex(noteFiles);
-                    } else {
-                        folderHandle = null;
                     }
                 }
                 checkUrlParams();
@@ -353,8 +350,6 @@
                     if (hasPermission) {
                         noteFiles = await scanNotesFolder(folderHandle);
                         sourceIndex = buildSourceIndex(noteFiles);
-                    } else {
-                        folderHandle = null;
                     }
                 }
                 checkUrlParams();
@@ -415,9 +410,14 @@
             window.location.href = 'add.html?' + params.toString();
         }
 
-        function goToNewNote(title, type, tag) {
+        async function goToNewNote(title, type, tag) {
             if (!folderHandle) {
                 alert('请先在笔记页面选择笔记文件夹，才能创建书摘/想法笔记。');
+                return;
+            }
+            // 尝试重新授权
+            if (!(await verifyFolderPermission(folderHandle))) {
+                alert('笔记文件夹权限已过期，请先在笔记页面重新授权。');
                 return;
             }
             const params = new URLSearchParams();

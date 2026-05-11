@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>又记 - 笔记</title>
+    <link rel="icon" href="data:,">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -1474,9 +1475,10 @@
                     document.getElementById('noFolderHint').classList.add('hidden');
                     document.getElementById('notesMainLayout').classList.remove('hidden');
                     document.getElementById('newNoteBtn').classList.remove('hidden');
-                    const created = await checkAndCreateWelcomeNote();
                     await refreshNoteList();
-                    if (created) {
+                    if (noteFiles.length === 0) {
+                        await createWelcomeNote();
+                        await refreshNoteList();
                         const welcomeFile = noteFiles.find(nf => nf.name === '欢迎使用又记.md');
                         if (welcomeFile) openNote(welcomeFile.name);
                     }
@@ -2025,9 +2027,10 @@
                 document.getElementById('noFolderHint').classList.add('hidden');
                 document.getElementById('notesMainLayout').classList.remove('hidden');
                 document.getElementById('newNoteBtn').classList.remove('hidden');
-                const created = await checkAndCreateWelcomeNote();
                 await refreshNoteList();
-                if (created) {
+                if (noteFiles.length === 0) {
+                    await createWelcomeNote();
+                    await refreshNoteList();
                     const welcomeFile = noteFiles.find(nf => nf.name === '欢迎使用又记.md');
                     if (welcomeFile) openNote(welcomeFile.name);
                 }
@@ -2038,15 +2041,8 @@
             }
         }
 
-        async function checkAndCreateWelcomeNote() {
-            if (!folderHandle) return false;
-            let mdCount = 0;
-            try {
-                for await (const entry of folderHandle.values()) {
-                    if (entry.kind === 'file' && entry.name.endsWith('.md')) mdCount++;
-                }
-            } catch (e) { return false; }
-            if (mdCount > 0) return false;
+        async function createWelcomeNote() {
+            if (!folderHandle) return;
             const welcomeContent = `# 欢迎使用又记 🎉
 
 又记是一个安静、克制的个人记录工具，帮助你管理书影音足迹和笔记思考。所有数据都存储在本地，完全属于你。

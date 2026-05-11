@@ -226,16 +226,6 @@ async function getFolderHandle() {
             req.onerror = () => reject(req.error);
         });
     }
-    // 验证句柄是否有效
-    if (handle && typeof handle.queryPermission !== 'function') {
-        console.warn('文件夹句柄已失效，已自动清除，请在笔记页重新选择。');
-        await new Promise((resolve) => {
-            const tx = db.transaction(CONFIG_STORE, 'readwrite');
-            tx.objectStore(CONFIG_STORE).delete(FOLDER_HANDLE_KEY);
-            resolve();
-        });
-        return null;
-    }
     return handle;
 }
 
