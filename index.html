@@ -739,7 +739,11 @@
                 btn.addEventListener('click', () => goToNewNote(btn.dataset.title, btn.dataset.type, '书摘'));
             });
             document.querySelectorAll('.add-thought-btn').forEach(btn => {
-                btn.addEventListener('click', () => goToNewNote(btn.dataset.title, btn.dataset.type, '想法'));
+                btn.addEventListener('click', () => {
+                    const matched = records.filter(r => r.title === btn.dataset.title && r.type === btn.dataset.type);
+                    const latest = matched.sort((a, b) => b.id - a.id)[0];
+                    if (latest) window.location.href = 'add.html?id=' + latest.id;
+                });
             });
             document.querySelectorAll('.batch-checkbox').forEach(el => el.classList.toggle('hidden', !batchMode));
             document.getElementById('batchToolbar')?.classList.toggle('hidden', !batchMode);

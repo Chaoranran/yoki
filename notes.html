@@ -214,6 +214,40 @@
         .ProseMirror .active-line {
             background-color: rgba(159,184,196,0.06);
         }
+
+        .float-btn {
+            position: fixed;
+            right: 1.5rem;
+            width: 2.5rem;
+            height: 2.5rem;
+            border-radius: 50%;
+            background-color: var(--c-card);
+            border: 1px solid var(--c-border);
+            color: var(--c-text-soft);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            z-index: 40;
+            transition: all 0.2s;
+        }
+        .float-btn:hover {
+            background-color: var(--c-accent);
+            color: #fff;
+            border-color: var(--c-accent);
+        }
+        .float-btn-top { bottom: 6rem; }
+        .float-btn-bottom { bottom: 2.5rem; }
+        .float-btn svg {
+            width: 14px;
+            height: 14px;
+            opacity: 0.7;
+        }
+        .float-btn:hover svg {
+            opacity: 1;
+            color: #fff;
+        }
     </style>
     <script src="common.js"></script>
     <script src="components/sidebar.js"></script>
@@ -3189,6 +3223,26 @@
         }
 
         init();
+    </script>
+
+    <div id="floatTopBtn" class="float-btn float-btn-top no-print" title="回到顶部">
+        <svg viewBox="0 0 16 16" fill="currentColor"><polygon points="8,2 2,10 14,10" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+    </div>
+    <div id="floatBottomBtn" class="float-btn float-btn-bottom no-print" title="去到底部">
+        <svg viewBox="0 0 16 16" fill="currentColor"><polygon points="8,14 2,6 14,6" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+    </div>
+
+    <script>
+        document.getElementById('floatTopBtn').addEventListener('click', () => {
+            const el = document.getElementById('noteEditorArea');
+            if (el && el.style.display !== 'none') el.scrollTo({ top: 0, behavior: 'smooth' });
+            else window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+        document.getElementById('floatBottomBtn').addEventListener('click', () => {
+            const el = document.getElementById('noteEditorArea');
+            if (el && el.style.display !== 'none') el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+            else window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        });
     </script>
 </body>
 </html>

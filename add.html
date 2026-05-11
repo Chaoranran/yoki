@@ -314,17 +314,38 @@
                     alert('已看集数不能大于总集数'); return;
                 }
 
+                // 如果需要同步想法，先刷新文件夹权限（在用户手势有效期内）
+                let folderOk = false;
+                if (recordData.thoughts) {
+                    const h = await getFolderHandle();
+                    if (h) folderOk = await verifyFolderPermission(h);
+                }
+
                 if (editingRecordId !== null) {
                     await updateRecord(editingRecordId, recordData);
-                    await syncThoughtsToSummary(recordData.title, recordData.type, recordData.thoughts);
-                    await syncGoldenQuotesToSummary(recordData.title, recordData.type, recordData.goldenQuotes);
-                    alert('记录更新成功！');
+                    if (folderOk) {
+                        await syncThoughtsToSummary(recordData.title, recordData.type, recordData.thoughts);
+                        await syncGoldenQuotesToSummary(recordData.title, recordData.type, recordData.goldenQuotes);
+                    }
+                    const msg = '记录更新成功！';
+                    if (recordData.thoughts && !folderOk) {
+                        alert(msg + '\n（提示：想法已保存到记录中。如需同步到「想法汇总.md」，请先在笔记页选择并授权笔记文件夹）');
+                    } else {
+                        alert(msg);
+                    }
                 } else {
                     recordData.id = Date.now();
                     await addRecord(recordData);
-                    await syncThoughtsToSummary(recordData.title, recordData.type, recordData.thoughts);
-                    await syncGoldenQuotesToSummary(recordData.title, recordData.type, recordData.goldenQuotes);
-                    alert(isRewatchMode ? '再刷一次记录成功！' : '记录添加成功！');
+                    if (folderOk) {
+                        await syncThoughtsToSummary(recordData.title, recordData.type, recordData.thoughts);
+                        await syncGoldenQuotesToSummary(recordData.title, recordData.type, recordData.goldenQuotes);
+                    }
+                    const baseMsg = isRewatchMode ? '再刷一次记录成功！' : '记录添加成功！';
+                    if (recordData.thoughts && !folderOk) {
+                        alert(baseMsg + '\n（提示：想法已保存到记录中。如需同步到「想法汇总.md」，请先在笔记页选择并授权笔记文件夹）');
+                    } else {
+                        alert(baseMsg);
+                    }
                 }
 
                 if (document.getElementById('continueAdding').checked) {

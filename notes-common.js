@@ -164,30 +164,23 @@ async function syncThoughtsToSummary(title, type, thoughtsText) {
         } catch (e) {
         }
 
-        let mdContent = '';
-        if (!existingContent.trim()) {
-            const groups = {};
-            for (const r of thoughtRecords) {
-                const key = r.title || '未命名';
-                if (!groups[key]) groups[key] = { title: r.title, type: r.type, thoughts: [] };
-                groups[key].thoughts.push(r.thoughts.trim());
+        const groups = {};
+        for (const r of thoughtRecords) {
+            const key = r.title || '未命名';
+            if (!groups[key]) groups[key] = { title: r.title, type: r.type, thoughts: [], maxId: 0 };
+            groups[key].thoughts.push(r.thoughts.trim());
+            if (r.id > groups[key].maxId) groups[key].maxId = r.id;
+        }
+        const sortedTitles = Object.keys(groups).sort((a, b) => groups[a].maxId - groups[b].maxId);
+        let mdContent = `# 想法汇总\n\n${statsLine}\n\n---\n\n`;
+        for (const t of sortedTitles) {
+            const g = groups[t];
+            const typeLabel = typeMap[g.type] || g.type;
+            mdContent += `## ${t}\n> 类型：${typeLabel}\n\n`;
+            for (const thought of g.thoughts) {
+                mdContent += `${thought.replace(/\n/g, '  \n')}\n\n`;
             }
-            const sortedTitles = Object.keys(groups).sort((a, b) => a.localeCompare(b, 'zh'));
-            mdContent = `# 想法汇总\n\n${statsLine}\n\n---\n\n`;
-            for (const t of sortedTitles) {
-                const g = groups[t];
-                const typeLabel = typeMap[g.type] || g.type;
-                mdContent += `## ${t}\n> 类型：${typeLabel}\n\n`;
-                for (const thought of g.thoughts) {
-                    mdContent += `${thought}\n\n`;
-                }
-                mdContent += `---\n\n`;
-            }
-        } else {
-            const updated = existingContent.replace(/^> 自动同步[^\n]*/m, statsLine);
-            const typeLabel = typeMap[type] || type;
-            const newEntry = `## ${title}\n> 类型：${typeLabel}\n\n${thoughtsText.trim()}\n\n---`;
-            mdContent = updated.replace(/\n*$/, '') + `\n\n${newEntry}\n`;
+            mdContent += `---\n\n`;
         }
 
         const writable = await fileHandle.createWritable();
@@ -222,30 +215,23 @@ async function syncGoldenQuotesToSummary(title, type, quotesText) {
         } catch (e) {
         }
 
-        let mdContent = '';
-        if (!existingContent.trim()) {
-            const groups = {};
-            for (const r of quoteRecords) {
-                const key = r.title || '未命名';
-                if (!groups[key]) groups[key] = { title: r.title, type: r.type, quotes: [] };
-                groups[key].quotes.push(r.goldenQuotes.trim());
+        const groups = {};
+        for (const r of quoteRecords) {
+            const key = r.title || '未命名';
+            if (!groups[key]) groups[key] = { title: r.title, type: r.type, quotes: [], maxId: 0 };
+            groups[key].quotes.push(r.goldenQuotes.trim());
+            if (r.id > groups[key].maxId) groups[key].maxId = r.id;
+        }
+        const sortedTitles = Object.keys(groups).sort((a, b) => groups[a].maxId - groups[b].maxId);
+        let mdContent = `# 金句汇总\n\n${statsLine}\n\n---\n\n`;
+        for (const t of sortedTitles) {
+            const g = groups[t];
+            const typeLabel = typeMap[g.type] || g.type;
+            mdContent += `## ${t}\n> 类型：${typeLabel}\n\n`;
+            for (const quote of g.quotes) {
+                mdContent += `${quote.replace(/\n/g, '  \n')}\n\n`;
             }
-            const sortedTitles = Object.keys(groups).sort((a, b) => a.localeCompare(b, 'zh'));
-            mdContent = `# 金句汇总\n\n${statsLine}\n\n---\n\n`;
-            for (const t of sortedTitles) {
-                const g = groups[t];
-                const typeLabel = typeMap[g.type] || g.type;
-                mdContent += `## ${t}\n> 类型：${typeLabel}\n\n`;
-                for (const quote of g.quotes) {
-                    mdContent += `${quote}\n\n`;
-                }
-                mdContent += `---\n\n`;
-            }
-        } else {
-            const updated = existingContent.replace(/^> 自动同步[^\n]*/m, statsLine);
-            const typeLabel = typeMap[type] || type;
-            const newEntry = `## ${title}\n> 类型：${typeLabel}\n\n${quotesText.trim()}\n\n---`;
-            mdContent = updated.replace(/\n*$/, '') + `\n\n${newEntry}\n`;
+            mdContent += `---\n\n`;
         }
 
         const writable = await fileHandle.createWritable();
