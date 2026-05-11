@@ -290,6 +290,15 @@
                                 <h2 class="text-sm font-bold text-gray-700">回收站</h2>
                                 <button id="closeTrashBtn" class="text-xs text-gray-400 hover:text-gray-600">← 返回</button>
                             </div>
+                            <div id="trashBatchBar" class="hidden px-3 py-2 border-b border-gray-200 flex items-center gap-2">
+                                <label class="inline-flex items-center gap-1 text-xs text-gray-600 cursor-pointer">
+                                    <input type="checkbox" id="trashSelectAll" class="w-4 h-4">
+                                    全选
+                                </label>
+                                <button id="trashBatchRestoreBtn" class="px-3 py-1 bg-indigo-600 text-white rounded-md text-xs hover:bg-indigo-700">批量恢复</button>
+                                <button id="trashBatchDeleteBtn" class="px-3 py-1 bg-red-600 text-white rounded-md text-xs hover:bg-red-700">批量永久删除</button>
+                                <span id="trashBatchCount" class="text-xs text-gray-500"></span>
+                            </div>
                             <div id="trashList" class="flex-1 overflow-y-auto"></div>
                             <div class="p-2 border-t border-gray-200">
                                 <button id="clearTrashBtn" class="w-full text-xs text-red-400 hover:text-red-600 py-1">清空回收站</button>
@@ -527,6 +536,7 @@
         let currentMarkdown = '';
         let isMobile = window.innerWidth < 768;
         let batchMode = false;
+        let trashBatchMode = false;
         let sidebarWidth = parseInt(localStorage.getItem('noteSidebarWidth')) || 280;
         let currentTags = [];
         let tagVisible = false;
@@ -1454,13 +1464,20 @@
             document.getElementById('exportPdfBtn').addEventListener('click', () => window.print());
             document.getElementById('pinNoteBtn').addEventListener('click', togglePinCurrentNote);
             document.getElementById('batchToggleBtn').addEventListener('click', () => {
-                if (batchMode) exitBatchMode(); else enterBatchMode();
+                const inTrash = !document.getElementById('trashPanel')?.classList.contains('hidden');
+                if (inTrash) {
+                    if (trashBatchMode) exitTrashBatchMode(); else enterTrashBatchMode();
+                } else {
+                    if (batchMode) exitBatchMode(); else enterBatchMode();
+                }
             });
             document.getElementById('batchDeleteBtn')?.addEventListener('click', batchDeleteNotes);
             document.getElementById('batchCancelBtn')?.addEventListener('click', exitBatchMode);
             document.getElementById('trashBtn')?.addEventListener('click', openTrashPanel);
             document.getElementById('closeTrashBtn')?.addEventListener('click', closeTrashPanel);
             document.getElementById('clearTrashBtn')?.addEventListener('click', handleClearTrash);
+            document.getElementById('trashBatchRestoreBtn')?.addEventListener('click', batchRestoreTrash);
+            document.getElementById('trashBatchDeleteBtn')?.addEventListener('click', batchDeleteTrash);
             document.getElementById('sortSelect').value = currentSortBy;
             document.getElementById('sortSelect').addEventListener('change', (e) => {
                 currentSortBy = e.target.value;
@@ -2616,6 +2633,30 @@
             renderNoteList();
         }
 
+        function enterTrashBatchMode() {
+            trashBatchMode = true;
+            const btn = document.getElementById('batchToggleBtn');
+            if (btn) {
+                btn.textContent = '取消';
+                btn.classList.add('bg-indigo-600', 'text-white');
+                btn.classList.remove('bg-gray-200', 'text-gray-700');
+            }
+            document.getElementById('trashBatchBar')?.classList.remove('hidden');
+            renderTrashList();
+        }
+
+        function exitTrashBatchMode() {
+            trashBatchMode = false;
+            const btn = document.getElementById('batchToggleBtn');
+            if (btn) {
+                btn.textContent = '批量';
+                btn.classList.remove('bg-indigo-600', 'text-white');
+                btn.classList.add('bg-gray-200', 'text-gray-700');
+            }
+            document.getElementById('trashBatchBar')?.classList.add('hidden');
+            renderTrashList();
+        }
+
         async function batchDeleteNotes() {
             const checkboxes = document.querySelectorAll('.batch-checkbox:checked');
             if (checkboxes.length === 0) return alert('请先勾选要删除的笔记');
@@ -2645,15 +2686,28 @@
             if (!currentNoteFile) closeNoteDetail();
             exitBatchMode();
             await refreshNoteList();
+            // 批量删除后如果当前筛选结果为空白，自动跳回全部
+            if (noteFiles.length > 0 && (searchKeyword || currentTagFilter)) {
+                const container = document.getElementById('noteList');
+                if (!container.querySelector('.note-list-item')) {
+                    searchKeyword = '';
+                    currentTagFilter = null;
+                    const searchInput = document.getElementById('noteSearchInput');
+                    if (searchInput) searchInput.value = '';
+                    renderNoteList();
+                }
+            }
         }
 
         async function openTrashPanel() {
+            if (batchMode) exitBatchMode();
             document.getElementById('noteList').classList.add('hidden');
             document.getElementById('trashPanel').classList.remove('hidden');
             await renderTrashList();
         }
 
         function closeTrashPanel() {
+            if (trashBatchMode) exitTrashBatchMode();
             document.getElementById('trashPanel').classList.add('hidden');
             document.getElementById('noteList').classList.remove('hidden');
         }
@@ -2668,15 +2722,19 @@
             trashItems.sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0));
             container.innerHTML = trashItems.map(item => {
                 const dateStr = new Date(item.deletedAt).toLocaleDateString('zh-CN');
+                const cbHtml = trashBatchMode ? `<input type="checkbox" class="trash-batch-cb w-4 h-4 mt-1 flex-shrink-0" data-id="${escapeAttr(item.id)}">` : '';
                 return `
-                    <div class="note-list-item" data-id="${escapeAttr(item.id)}">
-                        <div class="flex items-center justify-between mb-0.5">
-                            <h3 class="font-bold text-gray-700 text-sm truncate flex-1 mr-2">${escapeHtml(item.displayName)}</h3>
-                            <span class="text-xs text-gray-400 flex-shrink-0">${dateStr}</span>
-                        </div>
-                        <div class="flex items-center gap-2 mt-1">
-                            <button class="trash-restore text-xs text-indigo-500 hover:text-indigo-700" data-id="${escapeAttr(item.id)}">恢复</button>
-                            <button class="trash-perm-delete text-xs text-red-400 hover:text-red-600" data-id="${escapeAttr(item.id)}">永久删除</button>
+                    <div class="note-list-item flex items-start gap-2" data-id="${escapeAttr(item.id)}">
+                        ${cbHtml}
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between mb-0.5">
+                                <h3 class="font-bold text-gray-700 text-sm truncate flex-1 mr-2">${escapeHtml(item.displayName)}</h3>
+                                <span class="text-xs text-gray-400 flex-shrink-0">${dateStr}</span>
+                            </div>
+                            <div class="flex items-center gap-2 mt-1">
+                                <button class="trash-restore text-xs text-indigo-500 hover:text-indigo-700" data-id="${escapeAttr(item.id)}">恢复</button>
+                                <button class="trash-perm-delete text-xs text-red-400 hover:text-red-600" data-id="${escapeAttr(item.id)}">永久删除</button>
+                            </div>
                         </div>
                     </div>
                 `;
@@ -2691,7 +2749,9 @@
             container.querySelectorAll('.trash-perm-delete').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    permanentDelete(btn.dataset.id);
+                    if (confirm('永久删除后无法恢复，确定要永久删除此笔记吗？')) {
+                        permanentDelete(btn.dataset.id);
+                    }
                 });
             });
             container.querySelectorAll('.note-list-item[data-id]').forEach(item => {
@@ -2701,10 +2761,56 @@
                     const id = item.dataset.id;
                     window.createContextMenu([
                         { label: '恢复', action: () => restoreFromTrash(id) },
-                        { label: '永久删除', danger: true, action: () => permanentDelete(id) },
+                        { label: '永久删除', danger: true, action: () => { if (confirm('永久删除后无法恢复，确定要永久删除此笔记吗？')) permanentDelete(id); } },
                     ], e);
                 });
             });
+
+            // 批量操作：全选/反选
+            const selectAll = document.getElementById('trashSelectAll');
+            if (selectAll) {
+                selectAll.checked = false;
+                selectAll.addEventListener('change', () => {
+                    container.querySelectorAll('.trash-batch-cb').forEach(cb => cb.checked = selectAll.checked);
+                    updateTrashBatchCount();
+                });
+            }
+            container.querySelectorAll('.trash-batch-cb').forEach(cb => {
+                cb.addEventListener('change', updateTrashBatchCount);
+            });
+            updateTrashBatchCount();
+        }
+
+        function updateTrashBatchCount() {
+            const count = document.querySelectorAll('.trash-batch-cb:checked').length;
+            const el = document.getElementById('trashBatchCount');
+            if (el) el.textContent = count > 0 ? `已选 ${count}` : '';
+        }
+
+        async function batchRestoreTrash() {
+            const ids = [];
+            document.querySelectorAll('.trash-batch-cb:checked').forEach(cb => ids.push(cb.dataset.id));
+            if (ids.length === 0) return alert('请先勾选要恢复的笔记');
+            if (!confirm(`确定恢复选中的 ${ids.length} 篇笔记吗？`)) return;
+            for (const id of ids) {
+                await restoreFromTrash(id);
+            }
+        }
+
+        async function batchDeleteTrash() {
+            const ids = [];
+            document.querySelectorAll('.trash-batch-cb:checked').forEach(cb => ids.push(cb.dataset.id));
+            if (ids.length === 0) return alert('请先勾选要永久删除的笔记');
+            if (!confirm(`确定永久删除选中的 ${ids.length} 篇笔记吗？此操作不可恢复！`)) return;
+            if (!confirm('再次确认：这些笔记将被永久删除。')) return;
+            for (const id of ids) {
+                await permanentDelete(id);
+            }
+        }
+
+        async function permanentDelete(id) {
+            await removeFromTrash(id);
+            await renderTrashList();
         }
 
         async function restoreFromTrash(id) {
@@ -2722,12 +2828,6 @@
             } catch (e) {
                 alert('恢复失败：' + e.message);
             }
-        }
-
-        async function permanentDelete(id) {
-            if (!confirm('永久删除后无法恢复，确定要永久删除此笔记吗？')) return;
-            await removeFromTrash(id);
-            await renderTrashList();
         }
 
         async function handleClearTrash() {
