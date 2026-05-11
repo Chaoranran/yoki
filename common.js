@@ -156,9 +156,14 @@ function createContextMenu(items, event) {
         btn.appendChild(labelSpan);
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (item.action) item.action();
+            try {
+                if (item.action) item.action();
+            } catch (err) {
+                console.error('右键菜单操作失败:', err);
+            }
             closeContextMenu();
         });
+        btn.addEventListener('mousedown', (e) => e.stopPropagation());
         menu.appendChild(btn);
     });
 

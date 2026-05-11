@@ -388,9 +388,15 @@
         }
 
         async function deleteGroup(groupTitle, groupType) {
-            const displayName = groupTitle || '未命名';
+            const displayName = (groupTitle && String(groupTitle).trim()) || '未命名';
             if (confirm(`确定删除《${displayName}》的所有观看记录吗？`)) {
-                const toDelete = records.filter(r => r.type === groupType && (r.title === groupTitle || (!groupTitle && !r.title)));
+                const titleStr = String(groupTitle || '').trim();
+                const toDelete = records.filter(r => {
+                    if (r.type !== groupType) return false;
+                    const rTitle = String(r.title || '').trim();
+                    if (titleStr === '' && rTitle === '') return true;
+                    return rTitle === titleStr;
+                });
                 for (const r of toDelete) {
                     await deleteRecord(r.id);
                 }
