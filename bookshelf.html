@@ -237,23 +237,33 @@
                 const status = getBookStatus(book.title);
                 const hasRecord = !status && hasMatchingRecord(book.title);
                 const statusColors = { '想看': 'bg-gray-500', '在看': 'bg-yellow-500', '已看': 'bg-indigo-600' };
+                const encTitle = encodeURIComponent(book.title || book.name);
+                const encAuthor = encodeURIComponent(book.author || '');
                 const statusHtml = status
                     ? `<span class="absolute top-2 right-2 px-2 py-1 text-xs leading-tight rounded ${statusColors[status] || 'bg-gray-500'} text-white font-medium shadow-sm">${status}</span>`
                     : hasRecord
-                    ? `<span class="absolute top-2 right-2 px-2 py-1 text-xs leading-tight rounded bg-gray-400 text-white/70 font-medium shadow-sm">未标记</span>`
+                    ? `<span class="unmarked-badge absolute top-2 right-2 px-2 py-1 text-xs leading-tight rounded bg-gray-400 text-white/70 font-medium shadow-sm cursor-pointer hover:bg-gray-500 z-10">未标记</span>`
                     : '';
                 const coverHtml = book.coverData
                     ? `<img src="${book.coverData}" class="w-full h-full object-contain" alt="">`
                     : `<div class="flex items-center justify-center text-gray-300 dark:text-gray-500 text-lg font-bold">${(book.title || '?').charAt(0)}</div>`;
-                const addLink = !hasMatchingRecord(book.title)
-                    ? `<a href="add.html?title=${encodeURIComponent(book.title || book.name)}&type=book&author=${encodeURIComponent(book.author || '')}&source=bookshelf" class="text-[10px] text-indigo-400 hover:text-indigo-600 mt-1 inline-block">+ 添加记录</a>`
-                    : '';
+                let actionHtml = '';
+                const matched = bookRecords.find(r => r.type === 'book' && isMatch(book.title, r.title));
+                if (matched) {
+                    if (matched.status) {
+                        // 已有状态，不显示操作
+                    } else {
+                        actionHtml = `<a href="add.html?id=${matched.id}&source=bookshelf" class="text-[10px] text-indigo-400 hover:text-indigo-600 mt-1 inline-block">编辑记录</a>`;
+                    }
+                } else {
+                    actionHtml = `<a href="add.html?title=${encTitle}&type=book&author=${encAuthor}&source=bookshelf" class="text-[10px] text-indigo-400 hover:text-indigo-600 mt-1 inline-block">+ 添加记录</a>`;
+                }
                 card.innerHTML = `
                     <div class="aspect-[3/4] bg-gray-100 dark:bg-gray-700 flex items-center justify-center overflow-hidden relative">${coverHtml}${statusHtml}</div>
                     <div class="p-2">
                         <p class="text-xs text-gray-700 dark:text-gray-200 font-medium truncate">${escapeHtml(book.title || book.name)}</p>
                         <p class="text-xs text-gray-400 truncate mt-0.5">${escapeHtml(book.author || '')}</p>
-                        ${addLink}
+                        ${actionHtml}
                     </div>`;
                 card.addEventListener('click', () => openBook(book));
                 fragment.appendChild(card);
