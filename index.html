@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="referrer" content="no-referrer">
     <title>又记 - 记录</title>
-    <link rel="icon" href="data:,">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3C/svg%3E">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -203,7 +203,6 @@
                     <button id="viewToggleBtn" class="action-btn" title="切换视图">
                         <span id="viewToggleIcon"><svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg></span>
                     </button>
-                    <button id="exportMdBtn" class="action-btn" title="导出为 Markdown 表格">MD</button>
                 </div>
                 <div class="mb-6">
                     <input type="text" id="searchBox" placeholder="根据作品名称搜索..." class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 outline-none">
@@ -291,15 +290,43 @@
         async function init() {
             showSkeleton();
             initPage('index', loadRecords, saveRecords);
-            records = await loadRecords();
             folderHandle = await getFolderHandle();
+            let jsonlError = null;
             if (folderHandle) {
                 const hasPermission = await verifyFolderPermission(folderHandle);
                 if (hasPermission) {
+                    await ensureRecordsJSONL(folderHandle);
+                    const jsonlResult = await loadRecordsFromJSONL(folderHandle);
+                    if (jsonlResult.fallback) {
+                        // JSONL 损坏或读取失败，回退到 IndexedDB
+                        jsonlError = jsonlResult.error;
+                        records = await loadRecords();
+                        console.warn('JSONL 读取失败，已回退到 IndexedDB:', jsonlResult.error);
+                    } else if (jsonlResult.records.length > 0) {
+                        records = jsonlResult.records;
+                        await saveRecords(records);
+                    } else {
+                        const dbRecords = await loadRecords();
+                        if (dbRecords.length > 0) {
+                            await migrateFromIndexedDBToJSONL(folderHandle);
+                            records = dbRecords;
+                        } else {
+                            records = [];
+                        }
+                    }
                     noteFiles = await scanNotesFolder(folderHandle);
                     sourceIndex = buildSourceIndex(noteFiles);
+                } else {
+                    records = await loadRecords();
                 }
-                // 无权限时保留句柄，用户点击记想法/书摘时会触发授权
+            } else {
+                records = await loadRecords();
+            }
+            // 如果有 JSONL 错误，显示提示
+            if (jsonlError) {
+                setTimeout(() => {
+                    alert('检测到 records.jsonl 文件异常（' + jsonlError + '），已回退到本地缓存。建议检查文件或重新连接文件夹。');
+                }, 500);
             }
             checkUrlParams();
             applyStatusFilterSetting();
@@ -311,7 +338,6 @@
             bindSortOrderBtn();
             bindViewToggleBtn();
             bindFloatButtons();
-            bindExportMdBtn();
             renderTagCloud();
             renderGroupedRecords();
         }
@@ -379,6 +405,12 @@
         async function handleDeleteRecord(recordId) {
             if (confirm('确定删除这条观看记录吗？')) {
                 await deleteRecord(recordId);
+                // 同步到 JSONL
+                const folderHandle = await getFolderHandle();
+                if (folderHandle && await verifyFolderPermission(folderHandle)) {
+                    const allRecords = await loadRecords();
+                    await rewriteRecordsJSONL(folderHandle, allRecords);
+                }
                 records = await loadRecords();
                 renderGroupedRecords();
             }
@@ -396,6 +428,12 @@
                 });
                 for (const r of toDelete) {
                     await deleteRecord(r.id);
+                }
+                // 同步到 JSONL
+                const folderHandle = await getFolderHandle();
+                if (folderHandle && await verifyFolderPermission(folderHandle)) {
+                    const allRecords = await loadRecords();
+                    await rewriteRecordsJSONL(folderHandle, allRecords);
                 }
                 records = await loadRecords();
                 renderGroupedRecords();
@@ -998,6 +1036,12 @@
                         await deleteRecord(r.id);
                     }
                 }
+                // 同步到 JSONL
+                const folderHandle = await getFolderHandle();
+                if (folderHandle && await verifyFolderPermission(folderHandle)) {
+                    const allRecords = await loadRecords();
+                    await rewriteRecordsJSONL(folderHandle, allRecords);
+                }
                 records = await loadRecords();
                 exitBatchMode();
                 renderGroupedRecords();
@@ -1016,6 +1060,12 @@
                     }
                 }
                 if (updates.length) await batchUpdateRecords(updates);
+                // 同步到 JSONL
+                const folderHandle = await getFolderHandle();
+                if (folderHandle && await verifyFolderPermission(folderHandle)) {
+                    const allRecords = await loadRecords();
+                    await rewriteRecordsJSONL(folderHandle, allRecords);
+                }
                 records = await loadRecords();
                 exitBatchMode();
                 renderGroupedRecords();
@@ -1115,45 +1165,7 @@
             });
         }
 
-        function bindExportMdBtn() {
-            const btn = document.getElementById('exportMdBtn');
-            if (!btn) return;
-            btn.addEventListener('click', () => {
-                const groups = getFilteredGroups().sort((a, b) => {
-                    const latestA = a.items[0];
-                    const latestB = b.items[0];
-                    const dateA = latestA.endDate || latestA.startDate || '0000-00-00';
-                    const dateB = latestB.endDate || latestB.startDate || '0000-00-00';
-                    return dateB.localeCompare(dateA);
-                });
-                const rows = [];
-                rows.push('| 标题 | 类型 | 状态 | 观看次数 | 开始日期 | 结束日期 | 作者 | 译者 | 国别 | 上映年份 | 标签 |');
-                rows.push('|------|------|------|----------|----------|----------|------|------|------|----------|------|');
-                for (const group of groups) {
-                    const latest = group.items[0];
-                    const title = String(group.title || '');
-                    const type = getTypeName(String(group.type || ''));
-                    const status = latest.status || '';
-                    const watchCount = latest.watchCount || 1;
-                    const startDate = latest.startDate || '';
-                    const endDate = latest.endDate || '';
-                    const author = latest.author || '';
-                    const translator = latest.translator || '';
-                    const country = latest.country || '';
-                    const releaseYear = latest.releaseYear || '';
-                    const tags = Array.isArray(latest.tags) ? latest.tags.join(', ') : '';
-                    rows.push(`| ${title} | ${type} | ${status} | ${watchCount} | ${startDate} | ${endDate} | ${author} | ${translator} | ${country} | ${releaseYear} | ${tags} |`);
-                }
-                const md = rows.join('\n');
-                const blob = new Blob([md], { type: 'text/markdown' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `书影音记录_${new Date().toISOString().slice(0,10)}.md`;
-                a.click();
-                URL.revokeObjectURL(url);
-            });
-        }
+
 
         function renderTagCloud() {
             const container = document.getElementById('tagCloud');
@@ -1198,6 +1210,12 @@
                 updates.push({ id: rec.id, updates: { tags: rec.tags.filter(t => t !== tag) } });
             }
             if (updates.length) await batchUpdateRecords(updates);
+            // 同步到 JSONL
+            const folderHandle = await getFolderHandle();
+            if (folderHandle && await verifyFolderPermission(folderHandle)) {
+                const updatedRecords = await loadRecords();
+                await rewriteRecordsJSONL(folderHandle, updatedRecords);
+            }
             records = await loadRecords();
             renderTagCloud();
             renderGroupedRecords();
@@ -1222,6 +1240,12 @@
                 updates.push({ id: rec.id, updates: { tags: newTags } });
             }
             if (updates.length) await batchUpdateRecords(updates);
+            // 同步到 JSONL
+            const folderHandle = await getFolderHandle();
+            if (folderHandle && await verifyFolderPermission(folderHandle)) {
+                const updatedRecords = await loadRecords();
+                await rewriteRecordsJSONL(folderHandle, updatedRecords);
+            }
             renderTagCloud();
             renderGroupedRecords();
         }

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" href="data:,">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3C/svg%3E">
     <title>又记 - 添加/编辑</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -315,48 +315,64 @@
                     alert('已看集数不能大于总集数'); return;
                 }
 
-                // 如果需要同步想法，先刷新文件夹权限（在用户手势有效期内）
-                let folderOk = false;
-                let folderHandleValid = false;
-                if (recordData.thoughts) {
-                    const h = await getFolderHandle();
-                    if (h) {
-                        folderHandleValid = typeof h.queryPermission === 'function';
-                        folderOk = await verifyFolderPermission(h);
-                    }
-                }
+                // 获取文件夹句柄和权限
+                const folderHandle = await getFolderHandle();
+                const hasPermission = folderHandle ? await verifyFolderPermission(folderHandle) : false;
 
+                let jsonlWriteError = null;
                 if (editingRecordId !== null) {
+                    recordData.id = editingRecordId;
+                    // 先更新 IndexedDB
                     await updateRecord(editingRecordId, recordData);
-                    if (folderOk) {
+                    // 如果 JSONL 模式，重写整个文件
+                    if (hasPermission) {
+                        const allRecords = await loadRecords();
+                        const result = await rewriteRecordsJSONL(folderHandle, allRecords);
+                        if (!result.success) {
+                            jsonlWriteError = result.error;
+                        }
+                    }
+                    // 同步想法到笔记
+                    if (recordData.thoughts && hasPermission) {
                         await syncThoughtsToSummary(recordData.title, recordData.type, recordData.thoughts);
                         await syncGoldenQuotesToSummary(recordData.title, recordData.type, recordData.goldenQuotes);
                     }
-                    const msg = '记录更新成功！';
-                    if (recordData.thoughts && !folderOk) {
-                        const tip = folderHandleValid
+                    let msg = '记录更新成功！';
+                    if (jsonlWriteError) {
+                        msg += '\n（警告：写入 records.jsonl 失败 - ' + jsonlWriteError + '）';
+                    } else if (recordData.thoughts && !hasPermission) {
+                        const tip = folderHandle
                             ? '文件夹权限不足，请先在笔记页重新授权文件夹。'
                             : '笔记文件夹连接已失效，请先在笔记页重新选择文件夹。';
-                        alert(msg + '\n（提示：想法已保存到记录中。' + tip + '）');
-                    } else {
-                        alert(msg);
+                        msg += '\n（提示：想法已保存到记录中。' + tip + '）';
                     }
+                    alert(msg);
                 } else {
                     recordData.id = Date.now();
+                    // 先写入 IndexedDB
                     await addRecord(recordData);
-                    if (folderOk) {
+                    // 如果 JSONL 模式，追加到文件
+                    if (hasPermission) {
+                        const result = await appendRecordToJSONL(folderHandle, recordData);
+                        if (!result.success) {
+                            jsonlWriteError = result.error;
+                        }
+                    }
+                    // 同步想法到笔记
+                    if (recordData.thoughts && hasPermission) {
                         await syncThoughtsToSummary(recordData.title, recordData.type, recordData.thoughts);
                         await syncGoldenQuotesToSummary(recordData.title, recordData.type, recordData.goldenQuotes);
                     }
-                    const baseMsg = isRewatchMode ? '再刷一次记录成功！' : '记录添加成功！';
-                    if (recordData.thoughts && !folderOk) {
-                        const tip = folderHandleValid
+                    let baseMsg = isRewatchMode ? '再刷一次记录成功！' : '记录添加成功！';
+                    if (jsonlWriteError) {
+                        baseMsg += '\n（警告：写入 records.jsonl 失败 - ' + jsonlWriteError + '）';
+                    } else if (recordData.thoughts && !hasPermission) {
+                        const tip = folderHandle
                             ? '文件夹权限不足，请先在笔记页重新授权文件夹。'
                             : '笔记文件夹连接已失效，请先在笔记页重新选择文件夹。';
-                        alert(baseMsg + '\n（提示：想法已保存到记录中。' + tip + '）');
-                    } else {
-                        alert(baseMsg);
+                        baseMsg += '\n（提示：想法已保存到记录中。' + tip + '）';
                     }
+                    alert(baseMsg);
                 }
 
                 if (document.getElementById('continueAdding').checked) {

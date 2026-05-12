@@ -49,11 +49,6 @@ function renderSidebar(activePage) {
     <nav class="sidebar-nav w-16 shadow-md px-2 py-3 flex flex-col gap-1 fixed h-screen bg-white dark:bg-[#1e1e24] z-50">
         ${navLinks}
         <div class="mt-auto flex flex-col gap-1 items-center">
-            <label class="p-2 text-gray-500 hover:bg-gray-200 hover:text-gray-700 rounded-md cursor-pointer flex justify-center items-center" title="导入">
-                ${iconImportSidebar()}
-                <input type="file" id="importFile" accept=".json" class="hidden">
-            </label>
-            <button id="exportBtn" class="p-2 text-gray-500 hover:bg-gray-200 hover:text-gray-700 rounded-md flex justify-center items-center" title="导出">${iconExportSidebar('w-5 h-5')}</button>
             <button id="themeToggle" class="p-2 text-gray-500 hover:bg-gray-200 hover:text-gray-700 rounded-md flex justify-center items-center" title="切换主题">${iconThemeSidebar()}</button>
         </div>
     </nav>`;

@@ -376,3 +376,102 @@ async function clearBookCache() {
         tx.onerror = reject;
     });
 }
+
+/* ── JSONL 本地存储 ── */
+
+async function ensureRecordsJSONL(folderHandle) {
+    if (!folderHandle) return;
+    try {
+        await folderHandle.getFileHandle('records.jsonl');
+    } catch (e) {
+        if (e.name !== 'NotFoundError') return;
+        const fileHandle = await folderHandle.getFileHandle('records.jsonl', { create: true });
+        const writable = await fileHandle.createWritable();
+        await writable.write('');
+        await writable.close();
+    }
+}
+
+async function loadRecordsFromJSONL(folderHandle) {
+    if (!folderHandle) return { records: [], fallback: false };
+    try {
+        const fileHandle = await folderHandle.getFileHandle('records.jsonl');
+        const file = await fileHandle.getFile();
+        const text = await file.text();
+        if (!text.trim()) return { records: [], fallback: false };
+        const lines = text.split('\n').filter(line => line.trim() !== '');
+        const records = [];
+        let parseErrors = 0;
+        for (const line of lines) {
+            try {
+                const record = JSON.parse(line);
+                records.push(normalizeTags(record));
+            } catch (e) {
+                parseErrors++;
+                console.warn('JSONL 解析失败，跳过该行:', line.substring(0, 100));
+            }
+        }
+        // 如果解析错误率超过 50%，认为文件损坏
+        if (parseErrors > 0 && parseErrors / lines.length > 0.5) {
+            console.error('records.jsonl 文件损坏，解析错误率过高');
+            return { records: [], fallback: true, error: '文件损坏' };
+        }
+        return { records, fallback: false };
+    } catch (e) {
+        if (e.name === 'NotFoundError') return { records: [], fallback: false };
+        console.warn('读取 records.jsonl 失败', e);
+        return { records: [], fallback: true, error: e.message };
+    }
+}
+
+async function appendRecordToJSONL(folderHandle, record) {
+    if (!folderHandle) return { success: false };
+    try {
+        const fileHandle = await folderHandle.getFileHandle('records.jsonl');
+        const file = await fileHandle.getFile();
+        const writable = await fileHandle.createWritable({ keepExistingData: true });
+        await writable.seek(file.size);
+        await writable.write(JSON.stringify(record) + '\n');
+        await writable.close();
+        return { success: true };
+    } catch (e) {
+        console.warn('追加记录到 JSONL 失败', e);
+        return { success: false, error: e.message };
+    }
+}
+
+async function rewriteRecordsJSONL(folderHandle, records) {
+    if (!folderHandle) return { success: false };
+    try {
+        const fileHandle = await folderHandle.getFileHandle('records.jsonl');
+        // 先读取备份当前内容
+        let backupContent = '';
+        try {
+            const file = await fileHandle.getFile();
+            backupContent = await file.text();
+        } catch (e) {
+            // 文件不存在，无需备份
+        }
+        const writable = await fileHandle.createWritable();
+        const content = records.map(r => JSON.stringify(r)).join('\n') + '\n';
+        await writable.write(content);
+        await writable.close();
+        return { success: true };
+    } catch (e) {
+        console.warn('重写 JSONL 失败', e);
+        return { success: false, error: e.message };
+    }
+}
+
+async function migrateFromIndexedDBToJSONL(folderHandle) {
+    if (!folderHandle) return;
+    try {
+        await ensureRecordsJSONL(folderHandle);
+        const records = await loadRecords();
+        if (records.length === 0) return;
+        await rewriteRecordsJSONL(folderHandle, records);
+        console.log('已迁移 ' + records.length + ' 条记录到 JSONL');
+    } catch (e) {
+        console.warn('迁移到 JSONL 失败', e);
+    }
+}
