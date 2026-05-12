@@ -1,0 +1,91 @@
+# 又记 (Yoki) — Handoff 文档
+
+生成时间：2026-05-12
+
+## 项目状态
+
+又记是一个纯前端的个人书影音记录 + Markdown 笔记 + 素材管理工具。素材管理（gallery）已废弃，书架功能（bookshelf）基础功能已完成。
+
+### 已发布功能
+- 书影音记录的增删改查、导入导出
+- Markdown 笔记编辑（Milkdown）+ 文件管理
+- 统计页、热力图、搜索
+- 回收站（带批量操作）
+- 深色/浅色主题切换
+- 想法/金句/书摘同步到笔记
+
+### 开发中的功能
+- **电子书架（bookshelf）** — 基础功能已完成
+
+---
+
+## 电子书架（bookshelf）
+
+### 完成的功能
+- 文件夹选择 + 扫描（递归遍历 epub/pdf）
+- JSZip CDN 解压 + OPF XML 解析
+- 书名/作者/封面提取（支持多种封面命名策略）
+- 封面缩略图（`createImageBitmap` + Canvas，300px JPEG）
+- IndexedDB 封面缓存
+- 响应式网格：1280px→7列，1536px→8列
+- 占位封面（无封面时显示首字符）
+- 点击封面通过系统默认程序打开
+- 侧边栏导航已替换（素材→书架）
+- **搜索**：按书名/作者/文件名实时过滤
+- **排序**：按钮式切换，支持名称/类型/修改时间，升降序切换
+- 扫描时记录 `lastModified`，支持按修改时间排序
+
+### DB 层
+- `DB_VERSION` 5 → 6，新增 `bookshelf` store（keyPath: 'path'）
+- `saveBookshelfFolderHandle` / `getBookshelfFolderHandle`
+- `saveBookCache` / `loadAllBookCache` / `clearBookCache`
+
+### 待开发
+- **JSONL 本地存储迁移**：将书影音记录从 IndexedDB 迁移到笔记文件夹的 records.jsonl 文件，支持增量写入和自动备份（规划中，未开始）
+
+---
+
+## 未提交的改动
+
+（无，全部已提交）
+
+---
+
+## 已知的用户偏好（需牢记）
+
+1. **必须先测试再让用户测试**
+2. **主动建议更优方案**
+3. **中文沟通**
+4. **不改动已稳定的功能**
+5. **不自动提交或推送代码**
+6. **不改动 Milkdown ESM 引入方式**
+7. **回复简洁直接**
+8. **改视觉/交互方式先问用户**
+9. **执行前确认完整范围，列 checklist**
+10. **复杂改动先讨论方案，简单调整直接做，修改超过3个文件时先拆成小任务**
+11. **改代码前先跑现有测试确认基线**
+
+---
+
+## 技术决策
+
+| 决策 | 选择 |
+|------|------|
+| EPUB 解析 | JSZip CDN（3.10.1） |
+| 封面缩略图 | `createImageBitmap` + Canvas + JPEG 0.85 |
+| 封面缓存 | IndexedDB bookshelf store，base64 存 |
+| 封面检测 | 优先 cover/front 关键词 → 第一张图片 |
+| 书架网格 | CSS grid，响应式 2~8 列 |
+| DB 版本 | 6（增加 bookshelf store） |
+| 排序 UI | 按钮式 + 箭头指示升降序（同 gallery 风格） |
+| 素材页 | gallery.html 已删除（git 历史中保留） |
+
+---
+
+## 启动方式
+
+```bash
+cd D:/app/Vibe Coding/YoKi
+python -m http.server 8767
+# http://127.0.0.1:8767/bookshelf.html
+```
