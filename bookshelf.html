@@ -116,6 +116,14 @@
                 }
             }
             loadBookRecords();
+
+            // 页面重新可见时刷新记录（从其他标签页切回来）
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden && bsHandle) loadBookRecords();
+            });
+            window.addEventListener('focus', () => {
+                if (bsHandle) loadBookRecords();
+            });
         }
 
         async function loadBookRecords() {
