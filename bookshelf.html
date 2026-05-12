@@ -33,9 +33,19 @@
                     <p class="text-sm text-gray-300">支持 EPUB 和 PDF 格式</p>
                 </div>
                 <div id="bookshelfMain" class="hidden">
+                    <div class="relative mb-3">
+                        <input id="searchInput" type="text" placeholder="搜索书名 / 作者 / 文件名..." class="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-[#1e1e24] text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="m19 19-4.35-4.35M17 9A8 8 0 1 0 1 9a8 8 0 0 0 16 0Z"/></svg>
+                    </div>
+                    <div id="sortBar" class="flex items-center gap-2 mb-3">
+                        <span class="text-xs text-gray-400">排序</span>
+                        <button class="sort-btn px-2 py-0.5 text-xs rounded border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700" data-sort="name">名称</button>
+                        <button class="sort-btn px-2 py-0.5 text-xs rounded border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700" data-sort="type">类型</button>
+                        <button class="sort-btn px-2 py-0.5 text-xs rounded border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700" data-sort="mtime">修改时间</button>
+                        <span id="bookCount" class="text-xs text-gray-300 ml-auto"></span>
+                    </div>
                     <div id="bookGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"></div>
                 <style>@media (min-width:1280px){#bookGrid{grid-template-columns:repeat(7,1fr)}}@media (min-width:1536px){#bookGrid{grid-template-columns:repeat(8,1fr)}}</style>
-                    <div id="bookCount" class="text-xs text-gray-300 mt-4"></div>
                 </div>
             </div>
         </div>
@@ -43,6 +53,9 @@
 
     <script>
         let bsHandle = null;
+        let _allBooksCache = [];
+        let currentSort = 'name';
+        let currentSortDir = 'asc';
 
         async function init() {
             initPage('bookshelf');
@@ -59,6 +72,21 @@
             }
             document.getElementById('selectFolderBtn').addEventListener('click', selectFolder);
             document.getElementById('rescanBtn').addEventListener('click', startScan);
+            document.getElementById('searchInput').addEventListener('input', applyFilter);
+            document.getElementById('sortBar').addEventListener('click', (e) => {
+                const btn = e.target.closest('.sort-btn');
+                if (!btn) return;
+                const sort = btn.dataset.sort;
+                if (sort === currentSort) {
+                    currentSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
+                } else {
+                    currentSort = sort;
+                    currentSortDir = sort === 'mtime' ? 'desc' : 'asc';
+                }
+                updateSortUI();
+                applyFilter();
+            });
+            updateSortUI();
         }
 
         async function selectFolder() {
@@ -79,17 +107,47 @@
         }
 
         async function renderBookshelf() {
+            _allBooksCache = await loadAllBookCache();
+            applyFilter();
+        }
+
+        function updateSortUI() {
+            document.querySelectorAll('.sort-btn').forEach(b => {
+                const active = b.dataset.sort === currentSort;
+                b.classList.toggle('bg-indigo-100', active);
+                b.classList.toggle('dark:bg-indigo-900/30', active);
+                b.classList.toggle('text-indigo-700', active);
+                b.classList.toggle('dark:text-indigo-300', active);
+                const label = b.dataset.label || b.textContent;
+                if (!b.dataset.label) b.dataset.label = b.textContent;
+                b.textContent = label + (active ? (currentSortDir === 'asc' ? ' ↑' : ' ↓') : '');
+            });
+        }
+
+        function applyFilter() {
             const grid = document.getElementById('bookGrid');
             const countEl = document.getElementById('bookCount');
-            const cache = await loadAllBookCache();
-            if (cache.length === 0) {
-                grid.innerHTML = '<div class="col-span-full text-center text-gray-400 py-10 text-sm">书架为空</div>';
-                countEl.textContent = '0 本书';
+            const q = document.getElementById('searchInput').value.trim().toLowerCase();
+            let filtered = q
+                ? _allBooksCache.filter(b => (b.title || '').toLowerCase().includes(q) || (b.author || '').toLowerCase().includes(q) || (b.name || '').toLowerCase().includes(q))
+                : [..._allBooksCache];
+            // 排序
+            filtered.sort((a, b) => {
+                let cmp;
+                if (currentSort === 'name') cmp = (a.title || a.name || '').localeCompare(b.title || b.name || '');
+                else if (currentSort === 'type') cmp = (a.type || '').localeCompare(b.type || '') || (a.title || a.name || '').localeCompare(b.title || b.name || '');
+                else if (currentSort === 'mtime') cmp = (a.lastModified || 0) - (b.lastModified || 0);
+                else cmp = 0;
+                return currentSortDir === 'desc' ? -cmp : cmp;
+            });
+            if (filtered.length === 0) {
+                grid.innerHTML = '<div class="col-span-full text-center text-gray-400 py-10 text-sm">' + (_allBooksCache.length === 0 ? '书架为空' : '没有匹配的书籍') + '</div>';
+                countEl.textContent = _allBooksCache.length + ' 本书' + (_allBooksCache.length === 0 ? '' : ' | 筛选结果 0');
                 return;
             }
-            countEl.textContent = cache.length + ' 本书';
+            countEl.textContent = _allBooksCache.length + ' 本书' + (q ? ' | 筛选出 ' + filtered.length + ' 本' : '');
             const fragment = document.createDocumentFragment();
-            for (const book of cache) {
+            for (const book of filtered) {
                 const card = document.createElement('div');
                 card.className = 'bg-white dark:bg-[#262932] rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition';
                 const coverHtml = book.coverData
@@ -152,6 +210,7 @@
                     let h = bsHandle;
                     for (let j = 0; j < parts.length - 1; j++) h = await h.getDirectoryHandle(parts[j]);
                     const file = await (await h.getFileHandle(parts[parts.length - 1])).getFile();
+                    book.lastModified = file.lastModified;
 
                     if (f.type === 'epub') {
                         progress.textContent = '提取封面 ' + (i + 1) + '/' + files.length + ': ' + f.name + ' (读取中...)';
