@@ -7,12 +7,14 @@
 又记是一个纯前端的个人书影音记录 + Markdown 笔记 + 素材管理工具。素材管理（gallery）已废弃，书架功能（bookshelf）基础功能已完成。
 
 ### 已发布功能
-- 书影音记录的增删改查、导入导出
+- 书影音记录的增删改查
+- **JSONL 本地存储**：记录保存在笔记文件夹的 `records.jsonl`，可备份、可迁移
 - Markdown 笔记编辑（Milkdown）+ 文件管理
 - 统计页、热力图、搜索
 - 回收站（带批量操作）
 - 深色/浅色主题切换
 - 想法/金句/书摘同步到笔记
+- Markdown 导出（设置页）
 
 ### 开发中的功能
 - **电子书架（bookshelf）** — 基础功能已完成
@@ -40,14 +42,30 @@
 - `saveBookshelfFolderHandle` / `getBookshelfFolderHandle`
 - `saveBookCache` / `loadAllBookCache` / `clearBookCache`
 
-### 待开发
-- **JSONL 本地存储迁移**：将书影音记录从 IndexedDB 迁移到笔记文件夹的 records.jsonl 文件，支持增量写入和自动备份（规划中，未开始）
+### 数据存储
+- **JSONL 模式**（推荐）：连接笔记文件夹后，记录自动保存到 `records.jsonl`
+  - 增量写入：新增记录追加到文件末尾
+  - 全量重写：编辑/删除时重写整个文件
+  - 自动迁移：首次连接时从 IndexedDB 迁移数据
+  - 损坏回退：JSONL 损坏时自动使用 IndexedDB 缓存并提示用户
+- **IndexedDB 模式**：未连接文件夹时，记录保存在浏览器 IndexedDB
 
 ---
 
 ## 未提交的改动
 
-（无，全部已提交）
+- 更新 HANDOFF.md 记录 JSONL 迁移完成
+
+---
+
+## 最近完成
+
+### 2026-05-12 JSONL 本地存储迁移
+- ✅ db.js: 新增 5 个 JSONL 操作函数
+- ✅ index.html: 启动时检测 JSONL，支持自动迁移和损坏回退
+- ✅ add.html: 增删改操作同步到 JSONL
+- ✅ 界面优化: 移除侧边栏导入导出，MD 导出移到设置页
+- ✅ 所有页面: 更新 favicon 为透明图标
 
 ---
 
@@ -79,6 +97,9 @@
 | DB 版本 | 6（增加 bookshelf store） |
 | 排序 UI | 按钮式 + 箭头指示升降序（同 gallery 风格） |
 | 素材页 | gallery.html 已删除（git 历史中保留） |
+| 书影音存储 | JSONL 文件（优先）/ IndexedDB（回退） |
+| JSONL 格式 | 每行一条 JSON，行尾 `\n` |
+| 写入策略 | 新增追加，编辑/删除重写 |
 
 ---
 
