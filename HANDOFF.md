@@ -67,10 +67,10 @@
 
 ### 2026-05-12 书架集成与数据统一
 - ✅ common.js: 新增 normalizeTitle / isMatch（含字符重叠模糊匹配）
-- ✅ db.js: loadRecords 统一入口——JSONL 优先，缓存 IndexedDB，自动回退
+- ✅ db.js: 新增 syncRecordsFromJSONL 后台同步；loadRecords 恢复只读 IndexedDB
 - ✅ add.html: 封面自动填充（blur 匹配 + 缓存就绪 + 提示 UI）+ URL 预填跳转回书架
-- ✅ bookshelf.html: 阅读状态徽章 + 状态筛选栏 + 添加记录入口
-- ✅ 修复：权限弹窗阻塞事件绑定、多行排序残留、isMatch 文法错误导致的页面崩溃
+- ✅ bookshelf.html: 阅读状态徽章 + 状态筛选栏 + 添加记录入口 + 未标记编辑跳转 + TAB 切换自动刷新
+- ✅ 修复：权限弹窗阻塞事件绑定、多行排序残留、isMatch 文法错误、loadRecords 循环覆盖
 
 ### 2026-05-12 JSONL 本地存储迁移
 - ✅ db.js: 新增 5 个 JSONL 操作函数
