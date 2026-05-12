@@ -120,6 +120,30 @@ function initPage(activePage, loadFn, saveFn) {
     }
 }
 
+/* ── 书名匹配（书架集成用） ── */
+function normalizeTitle(title) {
+    return String(title)
+        .toLowerCase()
+        .replace(/[\s:：;；,，.。!！?？""''【】《》『』（）()、·…—–\-]+/g, '')
+        .trim();
+}
+
+function isMatch(inputTitle, bookTitle) {
+    const input = normalizeTitle(inputTitle);
+    const book = normalizeTitle(bookTitle);
+    if (!input || !book) return false;
+    if (book.includes(input) || input.includes(book)) return true;
+    // 模糊匹配：字符重叠度（双方至少3个字）
+    if (input.length >= 3 && book.length >= 3) {
+        const setA = new Set(input);
+        const setB = new Set(book);
+        const inter = new Set([...setA].filter(c => setB.has(c)));
+        const union = new Set([...setA, ...setB]);
+        if (inter.size / union.size >= 0.65) return true;
+    }
+    return false;
+}
+
 /* ── 右键菜单（通用组件） ── */
 function createContextMenu(items, event) {
     event.preventDefault();

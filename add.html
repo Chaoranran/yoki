@@ -137,6 +137,7 @@
                             <p class="text-xs text-gray-500 mb-1">预览：</p>
                             <img id="imagePreview" src="" alt="封面预览" class="max-w-48 h-auto rounded-md border border-gray-200 object-cover">
                         </div>
+                        <div id="coverHint" class="text-xs text-gray-400 mt-1 hidden"></div>
                         <div id="searchModal" class="mt-2 hidden">
                             <p class="text-xs text-gray-500 mb-1">常用图片搜索：</p>
                             <div class="flex flex-wrap gap-2">
@@ -168,6 +169,8 @@
         let records = [];
         let editingRecordId = null;
         let isRewatchMode = false;
+        let bookshelfBooks = [];
+        let bookshelfReady = false;
 
         async function init() {
             initPage('add', loadRecords, saveRecords);
@@ -179,7 +182,10 @@
             bindImagePreview();
             bindSearchButton();
             bindTagAutocomplete();
+            bindCoverMatch();
             updateFieldVisibility();
+            // 异步加载书架缓存，不阻塞 UI
+            initBookshelfCoverMatch();
 
             const params = new URLSearchParams(window.location.search);
             const id = params.get('id');
@@ -195,12 +201,95 @@
                 const latest = getLatestRecordByTitleType(title, type);
                 if (latest) enterRewatchMode(latest);
             }
+            // 从书架跳来的，预填信息
+            if (params.get('source') === 'bookshelf' && !params.get('id')) {
+                const title = params.get('title') || '';
+                const type = params.get('type') || 'book';
+                const author = params.get('author') || '';
+                if (title) {
+                    document.getElementById('title').value = title;
+                    document.getElementById('type').value = type;
+                    if (author) document.getElementById('author').value = author;
+                    updateFieldVisibility();
+                    // 等书架缓存加载完后触发封面匹配
+                    const checkCover = () => {
+                        if (!bookshelfReady) { setTimeout(checkCover, 100); return; }
+                        document.getElementById('title').dispatchEvent(new Event('blur'));
+                    };
+                    setTimeout(checkCover, 100);
+                }
+            }
         }
 
         function getLatestRecordByTitleType(title, type) {
             const matched = records.filter(r => r.title === title && r.type === type);
             if (matched.length === 0) return null;
             return matched.reduce((a, b) => (a.id > b.id) ? a : b);
+        }
+
+        /* ── 书架封面自动匹配 ── */
+        async function initBookshelfCoverMatch() {
+            try {
+                const handle = await getBookshelfFolderHandle();
+                if (handle) {
+                    const ok = await verifyFolderPermission(handle);
+                    if (ok) {
+                        bookshelfBooks = await loadAllBookCache();
+                        bookshelfReady = true;
+                    }
+                }
+            } catch (e) {
+                console.warn('书架加载失败', e);
+            }
+        }
+
+        function findCoverFromBookshelf(title) {
+            if (!bookshelfReady) return null;
+            title = title.trim();
+            if (!title) return null;
+            for (const book of bookshelfBooks) {
+                if (isMatch(title, book.title)) {
+                    return book.coverData || null;
+                }
+            }
+            return null;
+        }
+
+        function bindCoverMatch() {
+            const titleInput = document.getElementById('title');
+            const imageUrlInput = document.getElementById('imageUrl');
+            const typeSelect = document.getElementById('type');
+            if (!titleInput || !imageUrlInput || !typeSelect) return;
+
+            // 用户手动改封面时隐藏提示
+            imageUrlInput.addEventListener('input', function() {
+                document.getElementById('coverHint')?.classList.add('hidden');
+            });
+
+            titleInput.addEventListener('blur', function() {
+                const hint = document.getElementById('coverHint');
+                if (!hint) return;
+                if (typeSelect.value !== 'book') { hint.classList.add('hidden'); return; }
+                if (!bookshelfReady) return;
+
+                const title = this.value.trim();
+                if (!title) { hint.classList.add('hidden'); return; }
+
+                // 已有封面时不覆盖
+                if (imageUrlInput.value.trim()) return;
+
+                const cover = findCoverFromBookshelf(title);
+                if (cover) {
+                    imageUrlInput.value = cover;
+                    const event = new Event('input', { bubbles: true });
+                    imageUrlInput.dispatchEvent(event);
+                    hint.textContent = '💡 已从书架自动填入封面';
+                    hint.classList.remove('hidden');
+                } else {
+                    hint.textContent = '💡 书架中暂无匹配封面，可手动添加';
+                    hint.classList.remove('hidden');
+                }
+            });
         }
 
         function enterEditMode(record) {
@@ -384,7 +473,8 @@
                     document.getElementById('imagePreviewContainer')?.classList.add('hidden');
                     updateFieldVisibility();
                 } else {
-                    window.location.href = 'index.html';
+                    const from = new URLSearchParams(window.location.search).get('source');
+                    window.location.href = from === 'bookshelf' ? 'bookshelf.html' : 'index.html';
                 }
             });
         }

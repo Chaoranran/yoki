@@ -37,11 +37,17 @@
                         <input id="searchInput" type="text" placeholder="搜索书名 / 作者 / 文件名..." class="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-[#1e1e24] text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500">
                         <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="m19 19-4.35-4.35M17 9A8 8 0 1 0 1 9a8 8 0 0 0 16 0Z"/></svg>
                     </div>
-                    <div id="sortBar" class="flex items-center gap-2 mb-3">
+                    <div id="sortBar" class="flex items-center gap-2 mb-3 flex-wrap">
                         <span class="text-xs text-gray-400">排序</span>
                         <button class="sort-btn px-2 py-0.5 text-xs rounded border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700" data-sort="name">名称</button>
                         <button class="sort-btn px-2 py-0.5 text-xs rounded border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700" data-sort="type">类型</button>
                         <button class="sort-btn px-2 py-0.5 text-xs rounded border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700" data-sort="mtime">修改时间</button>
+                        <span class="w-px h-4 bg-gray-200 dark:bg-gray-600 mx-1"></span>
+                        <button class="status-btn px-2.5 py-0.5 text-xs rounded border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" data-status="">全部</button>
+                        <button class="status-btn px-2.5 py-0.5 text-xs rounded border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" data-status="想看">想看</button>
+                        <button class="status-btn px-2.5 py-0.5 text-xs rounded border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" data-status="在看">在看</button>
+                        <button class="status-btn px-2.5 py-0.5 text-xs rounded border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" data-status="已看">已看</button>
+                        <button class="status-btn px-2.5 py-0.5 text-xs rounded border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" data-status="__none__">未标记</button>
                         <span id="bookCount" class="text-xs text-gray-300 ml-auto"></span>
                     </div>
                     <div id="bookGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"></div>
@@ -56,9 +62,48 @@
         let _allBooksCache = [];
         let currentSort = 'name';
         let currentSortDir = 'asc';
+        let bookRecords = [];
+        let bookStatusMap = new Map();
+        let currentStatusFilter = '';
 
         async function init() {
             initPage('bookshelf');
+
+            // 先注册所有事件，不被权限弹窗阻塞
+            document.getElementById('selectFolderBtn').addEventListener('click', selectFolder);
+            document.getElementById('rescanBtn').addEventListener('click', startScan);
+            document.getElementById('searchInput').addEventListener('input', applyFilter);
+            document.getElementById('sortBar').addEventListener('click', (e) => {
+                const sortBtn = e.target.closest('.sort-btn');
+                if (sortBtn) {
+                    const sort = sortBtn.dataset.sort;
+                    if (sort === currentSort) {
+                        currentSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        currentSort = sort;
+                        currentSortDir = sort === 'mtime' ? 'desc' : 'asc';
+                    }
+                    updateSortUI();
+                    applyFilter();
+                    return;
+                }
+                const statusBtn = e.target.closest('.status-btn');
+                if (statusBtn) {
+                    currentStatusFilter = statusBtn.dataset.status;
+                    document.querySelectorAll('.status-btn').forEach(b => {
+                        const active = b.dataset.status === currentStatusFilter;
+                        b.classList.toggle('bg-indigo-100', active);
+                        b.classList.toggle('dark:bg-indigo-900/30', active);
+                        b.classList.toggle('text-indigo-700', active);
+                        b.classList.toggle('dark:text-indigo-300', active);
+                        b.classList.toggle('border-indigo-300', active);
+                        b.classList.toggle('dark:border-indigo-500', active);
+                    });
+                    applyFilter();
+                }
+            });
+            updateSortUI();
+
             bsHandle = await getBookshelfFolderHandle();
             if (bsHandle) {
                 const ok = await verifyFolderPermission(bsHandle);
@@ -70,23 +115,47 @@
                     await renderBookshelf();
                 }
             }
-            document.getElementById('selectFolderBtn').addEventListener('click', selectFolder);
-            document.getElementById('rescanBtn').addEventListener('click', startScan);
-            document.getElementById('searchInput').addEventListener('input', applyFilter);
-            document.getElementById('sortBar').addEventListener('click', (e) => {
-                const btn = e.target.closest('.sort-btn');
-                if (!btn) return;
-                const sort = btn.dataset.sort;
-                if (sort === currentSort) {
-                    currentSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
-                } else {
-                    currentSort = sort;
-                    currentSortDir = sort === 'mtime' ? 'desc' : 'asc';
+            loadBookRecords();
+        }
+
+        async function loadBookRecords() {
+            try {
+                bookRecords = await loadRecords();
+            } catch (e) {
+                bookRecords = [];
+            }
+            buildStatusMap();
+            if (bsHandle) applyFilter();
+        }
+
+        function buildStatusMap() {
+            bookStatusMap = new Map();
+            const sorted = [...bookRecords].sort((a, b) => b.id - a.id);
+            for (const r of sorted) {
+                if (r.type !== 'book' || !r.status) continue;
+                const key = normalizeTitle(r.title);
+                if (!bookStatusMap.has(key)) {
+                    bookStatusMap.set(key, r.status);
                 }
-                updateSortUI();
-                applyFilter();
-            });
-            updateSortUI();
+            }
+        }
+
+        function getBookStatus(bookTitle) {
+            if (!bookTitle || !bookRecords.length) return null;
+            const normalized = normalizeTitle(bookTitle);
+            const exact = bookStatusMap.get(normalized);
+            if (exact) return exact;
+            for (const r of bookRecords) {
+                if (r.type === 'book' && r.status && isMatch(bookTitle, r.title)) {
+                    return r.status;
+                }
+            }
+            return null;
+        }
+
+        function hasMatchingRecord(bookTitle) {
+            if (!bookTitle || !bookRecords.length) return false;
+            return bookRecords.some(r => r.type === 'book' && isMatch(bookTitle, r.title));
         }
 
         async function selectFolder() {
@@ -131,6 +200,13 @@
             let filtered = q
                 ? _allBooksCache.filter(b => (b.title || '').toLowerCase().includes(q) || (b.author || '').toLowerCase().includes(q) || (b.name || '').toLowerCase().includes(q))
                 : [..._allBooksCache];
+            // 状态筛选
+            if (currentStatusFilter) {
+                filtered = filtered.filter(b => {
+                    const s = getBookStatus(b.title);
+                    return currentStatusFilter === '__none__' ? !s : s === currentStatusFilter;
+                });
+            }
             // 排序
             filtered.sort((a, b) => {
                 let cmp;
@@ -145,19 +221,31 @@
                 countEl.textContent = _allBooksCache.length + ' 本书' + (_allBooksCache.length === 0 ? '' : ' | 筛选结果 0');
                 return;
             }
-            countEl.textContent = _allBooksCache.length + ' 本书' + (q ? ' | 筛选出 ' + filtered.length + ' 本' : '');
+            countEl.textContent = _allBooksCache.length + ' 本书 | ' + bookStatusMap.size + '/' + bookRecords.filter(r => r.type === 'book').length + ' 本书有状态' + (q || currentStatusFilter ? ' | 筛选出 ' + filtered.length + ' 本' : '');
             const fragment = document.createDocumentFragment();
             for (const book of filtered) {
                 const card = document.createElement('div');
                 card.className = 'bg-white dark:bg-[#262932] rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition';
+                const status = getBookStatus(book.title);
+                const hasRecord = !status && hasMatchingRecord(book.title);
+                const statusColors = { '想看': 'bg-gray-500', '在看': 'bg-yellow-500', '已看': 'bg-indigo-600' };
+                const statusHtml = status
+                    ? `<span class="absolute top-2 right-2 px-2 py-1 text-xs leading-tight rounded ${statusColors[status] || 'bg-gray-500'} text-white font-medium shadow-sm">${status}</span>`
+                    : hasRecord
+                    ? `<span class="absolute top-2 right-2 px-2 py-1 text-xs leading-tight rounded bg-gray-400 text-white/70 font-medium shadow-sm">未标记</span>`
+                    : '';
                 const coverHtml = book.coverData
                     ? `<img src="${book.coverData}" class="w-full h-full object-contain" alt="">`
                     : `<div class="flex items-center justify-center text-gray-300 dark:text-gray-500 text-lg font-bold">${(book.title || '?').charAt(0)}</div>`;
+                const addLink = !hasMatchingRecord(book.title)
+                    ? `<a href="add.html?title=${encodeURIComponent(book.title || book.name)}&type=book&author=${encodeURIComponent(book.author || '')}&source=bookshelf" class="text-[10px] text-indigo-400 hover:text-indigo-600 mt-1 inline-block">+ 添加记录</a>`
+                    : '';
                 card.innerHTML = `
-                    <div class="aspect-[3/4] bg-gray-100 dark:bg-gray-700 flex items-center justify-center overflow-hidden">${coverHtml}</div>
+                    <div class="aspect-[3/4] bg-gray-100 dark:bg-gray-700 flex items-center justify-center overflow-hidden relative">${coverHtml}${statusHtml}</div>
                     <div class="p-2">
                         <p class="text-xs text-gray-700 dark:text-gray-200 font-medium truncate">${escapeHtml(book.title || book.name)}</p>
                         <p class="text-xs text-gray-400 truncate mt-0.5">${escapeHtml(book.author || '')}</p>
+                        ${addLink}
                     </div>`;
                 card.addEventListener('click', () => openBook(book));
                 fragment.appendChild(card);

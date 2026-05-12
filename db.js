@@ -60,6 +60,22 @@ function openDB() {
 }
 
 async function loadRecords() {
+    // 优先从 JSONL 读取（仅当已有权限，不弹窗）
+    try {
+        const folderHandle = await getFolderHandle();
+        if (folderHandle && typeof folderHandle.queryPermission === 'function') {
+            if ((await folderHandle.queryPermission({ mode: 'read' })) === 'granted') {
+                const result = await loadRecordsFromJSONL(folderHandle);
+                if (!result.fallback && result.records.length > 0) {
+                    saveRecords(result.records).catch(() => {});
+                    return result.records;
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('JSONL 读取失败，回退 IndexedDB', e);
+    }
+    // 回退：从 IndexedDB 读取
     const db = await openDB();
     return new Promise((resolve, reject) => {
         const tx = db.transaction(STORE_NAME, 'readonly');
