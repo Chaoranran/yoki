@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>又记 - 书架</title>
+    <link rel="icon" href="data:,">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = { darkMode: 'class', theme: { extend: {} } }
+    </script>
+    <link rel="stylesheet" href="styles/theme.css">
+    <script src="common.js"></script>
+    <script src="components/sidebar.js"></script>
+    <script src="db.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</head>
+<body class="min-h-screen">
+    <div class="flex">
+        <div id="sidebar-container"></div>
+        <div class="flex-1 ml-16 p-4 sm:p-8 min-w-0">
+            <div>
+                <div class="flex items-center justify-between mb-6">
+                    <h1 class="text-2xl font-bold text-gray-600">书架</h1>
+                    <div class="flex items-center gap-3">
+                        <button id="selectFolderBtn" class="px-4 py-2 bg-indigo-600 text-white rounded-md text-sm hover:bg-indigo-700">选择电子书文件夹</button>
+                        <button id="rescanBtn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md text-sm hover:bg-gray-300 hidden">重新扫描</button>
+                    </div>
+                </div>
+                <div id="scanProgress" class="hidden mb-4 p-3 bg-indigo-50 rounded-md text-sm text-indigo-700"></div>
+                <div id="emptyState" class="text-center py-16">
+                    <p class="text-xl text-gray-400 mb-2">选择电子书文件夹</p>
+                    <p class="text-sm text-gray-300">支持 EPUB 和 PDF 格式</p>
+                </div>
+                <div id="bookshelfMain" class="hidden">
+                    <div id="bookGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"></div>
+                <style>@media (min-width:1280px){#bookGrid{grid-template-columns:repeat(7,1fr)}}@media (min-width:1536px){#bookGrid{grid-template-columns:repeat(8,1fr)}}</style>
+                    <div id="bookCount" class="text-xs text-gray-300 mt-4"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let bsHandle = null;
+
+        async function init() {
+            initPage('bookshelf');
+            bsHandle = await getBookshelfFolderHandle();
+            if (bsHandle) {
+                const ok = await verifyFolderPermission(bsHandle);
+                if (ok) {
+                    document.getElementById('emptyState').classList.add('hidden');
+                    document.getElementById('bookshelfMain').classList.remove('hidden');
+                    document.getElementById('selectFolderBtn').textContent = '更换文件夹';
+                    document.getElementById('rescanBtn').classList.remove('hidden');
+                    await renderBookshelf();
+                }
+            }
+            document.getElementById('selectFolderBtn').addEventListener('click', selectFolder);
+            document.getElementById('rescanBtn').addEventListener('click', startScan);
+        }
+
+        async function selectFolder() {
+            try {
+                const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
+                const ok = await verifyFolderPermission(handle);
+                if (!ok) return alert('需要文件夹权限');
+                bsHandle = handle;
+                await saveBookshelfFolderHandle(handle);
+                document.getElementById('emptyState').classList.add('hidden');
+                document.getElementById('bookshelfMain').classList.remove('hidden');
+                document.getElementById('selectFolderBtn').textContent = '更换文件夹';
+                document.getElementById('rescanBtn').classList.remove('hidden');
+                await startScan();
+            } catch (e) {
+                if (e.name !== 'AbortError') alert('选择文件夹失败：' + e.message);
+            }
+        }
+
+        async function renderBookshelf() {
+            const grid = document.getElementById('bookGrid');
+            const countEl = document.getElementById('bookCount');
+            const cache = await loadAllBookCache();
+            if (cache.length === 0) {
+                grid.innerHTML = '<div class="col-span-full text-center text-gray-400 py-10 text-sm">书架为空</div>';
+                countEl.textContent = '0 本书';
+                return;
+            }
+            countEl.textContent = cache.length + ' 本书';
+            const fragment = document.createDocumentFragment();
+            for (const book of cache) {
+                const card = document.createElement('div');
+                card.className = 'bg-white dark:bg-[#262932] rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition';
+                const coverHtml = book.coverData
+                    ? `<img src="${book.coverData}" class="w-full h-full object-contain" alt="">`
+                    : `<div class="flex items-center justify-center text-gray-300 dark:text-gray-500 text-lg font-bold">${(book.title || '?').charAt(0)}</div>`;
+                card.innerHTML = `
+                    <div class="aspect-[3/4] bg-gray-100 dark:bg-gray-700 flex items-center justify-center overflow-hidden">${coverHtml}</div>
+                    <div class="p-2">
+                        <p class="text-xs text-gray-700 dark:text-gray-200 font-medium truncate">${escapeHtml(book.title || book.name)}</p>
+                        <p class="text-xs text-gray-400 truncate mt-0.5">${escapeHtml(book.author || '')}</p>
+                    </div>`;
+                card.addEventListener('click', () => openBook(book));
+                fragment.appendChild(card);
+            }
+            grid.innerHTML = '';
+            grid.appendChild(fragment);
+        }
+
+        async function openBook(book) {
+            try {
+                const parts = book.path.split('/').filter(Boolean);
+                let h = bsHandle;
+                for (let i = 0; i < parts.length - 1; i++) h = await h.getDirectoryHandle(parts[i]);
+                const f = await (await h.getFileHandle(parts[parts.length - 1])).getFile();
+                window.open(URL.createObjectURL(f));
+            } catch (e) { console.warn('打开失败', e); }
+        }
+
+        async function startScan() {
+            const progress = document.getElementById('scanProgress');
+            progress.classList.remove('hidden');
+            progress.textContent = '扫描中...';
+
+            // 递归扫描 epub/pdf 文件
+            const files = [];
+            const queue = [{ handle: bsHandle, path: '' }];
+            while (queue.length > 0) {
+                const { handle, path } = queue.shift();
+                let entries;
+                try { entries = []; for await (const e of handle.values()) entries.push(e); } catch (e) { continue; }
+                for (const entry of entries) {
+                    if (entry.kind === 'file') {
+                        const ext = entry.name.split('.').pop().toLowerCase();
+                        if (ext === 'epub' || ext === 'pdf') files.push({ path: path + '/' + entry.name, name: entry.name, type: ext });
+                    } else {
+                        queue.push({ handle: entry, path: path + '/' + entry.name });
+                    }
+                }
+                progress.textContent = '已扫描 ' + files.length + ' 个文件...';
+            }
+            await clearBookCache();
+
+            // 提取每本书的元数据和封面
+            for (let i = 0; i < files.length; i++) {
+                const f = files[i];
+                progress.textContent = '提取封面 ' + (i + 1) + '/' + files.length + ': ' + f.name;
+                const book = { path: f.path, name: f.name, type: f.type, title: f.name.replace(/\.(epub|pdf)$/i, ''), author: '', coverData: '' };
+                try {
+                    const parts = f.path.split('/').filter(Boolean);
+                    let h = bsHandle;
+                    for (let j = 0; j < parts.length - 1; j++) h = await h.getDirectoryHandle(parts[j]);
+                    const file = await (await h.getFileHandle(parts[parts.length - 1])).getFile();
+
+                    if (f.type === 'epub') {
+                        progress.textContent = '提取封面 ' + (i + 1) + '/' + files.length + ': ' + f.name + ' (读取中...)';
+                        try {
+                            await Promise.race([
+                                extractEpubMeta(file, book),
+                                new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 60000))
+                            ]);
+                        } catch(e) {
+                            console.warn('跳过:', f.path, e.message);
+                        }
+                    }
+                    // PDF 只用占位封面（coverData 留空即显示首字母）
+                } catch (e) { console.warn('处理失败:', f.path, e); }
+                await saveBookCache(book);
+            }
+
+            progress.classList.add('hidden');
+            await renderBookshelf();
+        }
+
+        /* ── ZIP 读取（EPUB 专用，使用 JSZip） ── */
+        async function readZipEntry(blob, targetName) {
+            try {
+                const zip = await JSZip.loadAsync(blob);
+                const entry = zip.file(targetName);
+                if (!entry) return null;
+                return await entry.async('uint8array');
+            } catch(e) { console.warn('ZIP失败:', targetName, e); return null; }
+        }
+
+        async function extractEpubMeta(file, book) {
+            const blob = file;
+            const log = document.getElementById('scanProgress');
+            let step = '解析ZIP';
+            log.textContent = log.textContent.replace(/\(.+?\)/, '(' + step + ')');
+            let data = await readZipEntry(blob, 'META-INF/container.xml');
+            if (!data) return;
+            step = '解析OPF路径'; log.textContent = log.textContent.replace(/\(.+?\)/, '(' + step + ')');
+            const xml = new TextDecoder().decode(data);
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(xml, 'text/xml');
+            const rootfile = Array.from(doc.querySelectorAll('*')).find(el => el.localName === 'rootfile');
+            if (!rootfile) return;
+            const opfPath = rootfile.getAttribute('full-path');
+            if (!opfPath) return;
+
+            step = '读取OPF'; log.textContent = log.textContent.replace(/\(.+?\)/, '(' + step + ')');
+            data = await readZipEntry(blob, opfPath);
+            if (!data) return;
+            step = '解析元数据'; log.textContent = log.textContent.replace(/\(.+?\)/, '(' + step + ')');
+            const opfXml = new TextDecoder().decode(data);
+            const opfDoc = parser.parseFromString(opfXml, 'text/xml');
+
+            // 提取标题（用通配符绕过 XML 命名空间）
+            const allEls = opfDoc.querySelectorAll('*');
+            const titleEl = Array.from(allEls).find(el => el.localName === 'title');
+            const creatorEl = Array.from(allEls).find(el => el.localName === 'creator');
+            if (titleEl) book.title = titleEl.textContent.trim();
+            if (creatorEl) book.author = creatorEl.textContent.trim();
+
+            // 3. 找封面图（用通配符绕过命名空间）
+            const opfAll = Array.from(opfDoc.querySelectorAll('*'));
+            const manifest = opfAll.find(el => el.localName === 'manifest');
+            if (!manifest) return;
+            const opfDir = opfPath.substring(0, opfPath.lastIndexOf('/') + 1) || '';
+
+            let coverHref = '';
+            const items = Array.from(manifest.querySelectorAll('*')).filter(el => el.localName === 'item');
+            const imgItems = items.filter(el => (el.getAttribute('media-type') || '').startsWith('image/'));
+            // 策略1：找 id/href 含 cover 或 front 的图片
+            const coverMatch = imgItems.find(el => {
+                const id = (el.getAttribute('id') || '').toLowerCase();
+                const href = (el.getAttribute('href') || '').toLowerCase();
+                return id.includes('cover') || href.includes('cover') || href.includes('front');
+            });
+            if (coverMatch) coverHref = coverMatch.getAttribute('href');
+            // 策略2：没有封面标记时用第一张图片
+            if (!coverHref && imgItems.length > 0) coverHref = imgItems[0].getAttribute('href');
+            if (!coverHref) return;
+            const coverPath = opfDir + coverHref;
+
+            // 4. 读取封面图（试编码和原始两种路径）
+            const findCover = async (path) => readZipEntry(blob, path) || readZipEntry(blob, decodeURIComponent(path));
+            data = await findCover(coverPath);
+            if (!data) return;
+            const mimeType = coverMatch?.getAttribute('media-type') || 'image/jpeg';
+            const coverBlob = new Blob([data], { type: mimeType });
+            const url = URL.createObjectURL(coverBlob);
+
+            // 5. 生成缩略图
+            try {
+                const bitmap = await createImageBitmap(coverBlob, { resizeWidth: 300, resizeQuality: 'high' });
+                const canvas = document.createElement('canvas');
+                const maxDim = 300;
+                let w = bitmap.width, h = bitmap.height;
+                if (w > h) { if (w > maxDim) { h = h * maxDim / w; w = maxDim; } }
+                else { if (h > maxDim) { w = w * maxDim / h; h = maxDim; } }
+                canvas.width = Math.round(w);
+                canvas.height = Math.round(h);
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+                bitmap.close();
+                book.coverData = canvas.toDataURL('image/jpeg', 0.85);
+            } catch (e) { console.warn('封面缩略图失败', e); }
+            URL.revokeObjectURL(url);
+        }
+
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
