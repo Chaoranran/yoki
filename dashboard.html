@@ -110,7 +110,7 @@
                     if (year && !isNaN(year)) acc[year] = (acc[year] || 0) + 1;
                     return acc;
                 }, {});
-                const yearList = Object.entries(yearCounts).sort((a, b) => a[0] - b[0]);
+                const yearList = Object.entries(yearCounts).sort((a, b) => a[0] - b[0]).slice(-10);
                 const maxYearCount = Math.max(...Object.values(yearCounts), 1);
                 typeStats[type] = {
                     count: typeRecords.length,
@@ -120,7 +120,8 @@
                     }).length,
                     statusCounts,
                     yearList,
-                    maxYearCount
+                    maxYearCount,
+                    hasMoreYears: Object.keys(yearCounts).length > 10
                 };
             });
             const container = document.getElementById('typeStats');
@@ -138,19 +139,19 @@
                     ? Object.entries(stats.statusCounts).map(([status, count]) => `
                         <span class="inline-flex items-center gap-1 text-sm">
                             <span class="text-gray-600 w-10">${status}</span>
-                            <a href="index.html?status=${encodeURIComponent(status)}" class="font-medium ${cfg.color} text-white px-2 h-5 flex items-center justify-center rounded text-xs hover:underline">${count}</a>
+                            <a href="index.html?type=${type}&status=${encodeURIComponent(status)}" class="font-medium ${cfg.color} text-white px-2 h-5 flex items-center justify-center rounded text-xs hover:underline">${count}</a>
                         </span>`).join('')
                     : '<span class="text-sm text-gray-400">无数据</span>';
                 const yearHtml = stats.yearList.length > 0
-                    ? `<div class="flex items-end gap-2 h-20 flex-wrap">
+                    ? `<div class="flex items-end gap-1 h-20 justify-between">
                         ${stats.yearList.map(([year, count]) => {
                             const height = (count / stats.maxYearCount * 100);
-                            return `<a href="index.html?year=${year}" class="flex flex-col items-center flex-1 h-full justify-end" style="min-width: 3rem;">
-                                    <span class="text-xs text-gray-600 font-medium mb-1">${count}</span>
-                                    <div class="w-full bg-gray-100 rounded-t overflow-hidden relative" style="height: 60px">
+                            return `<a href="index.html?type=${type}&year=${year}" class="flex flex-col items-center justify-end flex-1" style="height: 5rem; max-width: calc((100% - ${(stats.yearList.length - 1) * 0.25}rem) / ${stats.yearList.length});">
+                                    <span class="text-xs text-gray-600 font-medium mb-0.5 leading-none">${count}</span>
+                                    <div class="w-full bg-gray-100 rounded-t overflow-hidden relative flex-1">
                                         <div class="${cfg.color} w-full absolute bottom-0 transition-all" style="height: ${height}%"></div>
                                     </div>
-                                    <span class="text-xs text-gray-500 mt-1">${year}</span>
+                                    <span class="text-xs text-gray-500 mt-0.5 leading-none">${year}</span>
                                 </a>`;
                         }).join('')}
                     </div>`
@@ -160,7 +161,7 @@
                         <div class="flex items-stretch min-h-[160px]">
                             <div class="w-20 ${cfg.color} text-white p-4 flex flex-col justify-center items-center">
                                 <span class="text-lg font-bold">${cfg.name}</span>
-                                <a href="index.html?year=${thisYear}" class="text-xs font-bold opacity-80 mt-1 hover:underline">今年 ${stats.thisYearCount}</a>
+                                <a href="index.html?type=${type}&year=${thisYear}" class="text-xs font-bold opacity-80 mt-1 hover:underline">今年 ${stats.thisYearCount}</a>
                             </div>
                             <div class="flex-1 p-4 h-full">
                                 <div class="flex items-center gap-4 mb-2">
@@ -171,8 +172,11 @@
                                     <span class="text-sm text-gray-500 mr-2 font-bold">状态：</span>
                                     ${statusHtml}
                                 </div>
-                                <div class="flex flex-wrap gap-2 items-center">
-                                    <span class="text-sm text-gray-500 mr-2 font-bold">年度：</span>
+                                <div class="flex flex-wrap gap-2 items-start">
+                                    <div class="mr-2">
+                                        <span class="text-sm text-gray-500 font-bold">年度：</span>
+                                        ${stats.hasMoreYears ? '<div class="text-xs text-gray-300 mt-0.5">近10年</div>' : ''}
+                                    </div>
                                     ${yearHtml}
                                 </div>
                             </div>
