@@ -116,7 +116,7 @@
                     count: typeRecords.length,
                     thisYearCount: typeRecords.filter(r => {
                         const y = r.viewYear || (r.startDate ? parseInt(r.startDate.split('-')[0]) : (r.endDate ? parseInt(r.endDate.split('-')[0]) : ''));
-                        return y === thisYear;
+                        return y === thisYear && r.status === '已看';
                     }).length,
                     statusCounts,
                     yearList,
@@ -161,7 +161,7 @@
                         <div class="flex items-stretch min-h-[160px]">
                             <div class="w-20 ${cfg.color} text-white p-4 flex flex-col justify-center items-center">
                                 <span class="text-lg font-bold">${cfg.name}</span>
-                                <a href="index.html?type=${type}&year=${thisYear}" class="text-xs font-bold opacity-80 mt-1 hover:underline">今年 ${stats.thisYearCount}</a>
+                                <a href="index.html?type=${type}&year=${thisYear}&status=${encodeURIComponent('已看')}" class="text-xs font-bold opacity-80 mt-1 hover:underline">今年 ${stats.thisYearCount}</a>
                             </div>
                             <div class="flex-1 p-4 h-full">
                                 <div class="flex items-center gap-4 mb-2">
